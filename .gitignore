@@ -28,3 +28,6 @@ pnpm-debug.log*
 .DS_Store
 .idea/
 *.swp
+
+# Railway CLI local link state (the project definition itself, .railway/railway.ts, IS committed)
+.railway/*.json

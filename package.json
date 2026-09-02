@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc -b && tsc -p tsconfig.tests.json --noEmit",
+    "typecheck": "tsc -b && tsc -p tsconfig.tools.json --noEmit",
     "db:up": "docker compose -f docker-compose.test.yml up -d --wait",
     "db:down": "docker compose -f docker-compose.test.yml down -v",
     "db:migrate": "node scripts/migrate.mjs",
@@ -18,9 +18,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "pg": "^8.13.1",
     "@types/pg": "^8.11.10",
+    "railway": "^3.11.0",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   }
 }

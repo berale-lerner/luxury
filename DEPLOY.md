@@ -1,99 +1,129 @@
 # DEPLOY.md — פריסה ב-Railway
 
-מסמך תפעולי. הכללים שמאחורי ההחלטות כאן נמצאים ב-[CLAUDE.md](CLAUDE.md) (Operations, Communication between services) וב-[DESIGN.md](DESIGN.md) (תשתית).
+מסמך תפעולי. הכללים שמאחורי ההחלטות כאן נמצאים ב-[CLAUDE.md](CLAUDE.md) (Operations) וב-[DESIGN.md](DESIGN.md) (תשתית).
+
+**הפרויקט מוגדר כקוד ב-[.railway/railway.ts](.railway/railway.ts).** אותו היגיון כמו המיגרציות: תשתית שמוגדרת בקונסולה היא תשתית שאף אחד לא יכול לסקור, והיא נפרדת בשקט ממה שכתוב בריפו. `railway config plan` מראה את ההפרש, `railway config apply` מחיל אותו.
 
 ---
 
 ## ⚠️ הכלל שהכי קל להפר ב-Railway
 
-ב-Railway יש **Shared Variables ברמת הפרויקט**. הם נוחים, והם סותרים ישירות כלל ב-CLAUDE.md.
+ל-Railway יש **Shared Variables ברמת הפרויקט**. הם נוחים, והם סותרים ישירות כלל ב-CLAUDE.md.
 
-**כל משתנה מוגדר ברמת השירות בלבד.** אם `TELEGRAM_BOT_TOKEN` מוגדר פעם אחת ברמת הפרויקט, שני השירותים מקבלים אותו — וההפרדה שכל המבנה הזה קיים בשבילה נעלמת בקליק אחד. משתנה שנראה "משותף ממילא" מוגדר פעמיים, אחת בכל שירות.
+**כל משתנה מוגדר ברמת השירות בלבד.** אם `TELEGRAM_BOT_TOKEN` מוגדר פעם אחת ברמת הפרויקט, שני השירותים מקבלים אותו — וההפרדה שכל המבנה קיים בשבילה נעלמת בקליק אחד. לכן הטוקן מופיע פעמיים בקובץ ה-IaC, אחת בכל שירות, ולא כמשתנה משותף.
 
-משתני הפניה כמו `${{Postgres.RAILWAY_PRIVATE_DOMAIN}}` הם בסדר — הם מוגדרים על השירות הצורך, לא ברמת הפרויקט.
+משתני הפניה (`${{Postgres.RAILWAY_PRIVATE_DOMAIN}}`) הם בסדר — הם מוגדרים על השירות הצורך.
 
 ---
 
 ## מבנה: ארבעה שירותים בכל סביבה
 
-| שירות | תפקיד ב-DB | קובץ קונפיג | חשוף לאינטרנט |
-|---|---|---|---|
-| `Postgres` | — | תוסף של Railway | לא |
-| `bot` | `bot_user` | `apps/bot/railway.json` | **כן** — webhook של טלגרם |
-| `admin` | `admin_user` | `apps/admin/railway.json` | כן, מאחורי auth + allowlist |
-| `migrator` | בעלים | `ops/railway/migrator.json` | לא |
-
-לכל שלושת שירותי הקוד **Root Directory הוא שורש הריפו** (`/`), כי pnpm צריך את ה-workspace כדי להתקין. מה שמבדיל ביניהם הוא נתיב ה-Config as code בהגדרות השירות, ו-`watchPatterns` שבתוכו — כך ששינוי ב-`apps/admin` לא מפיל דיפלוי של הבוט.
+| שירות | תפקיד ב-DB | חשוף לאינטרנט |
+|---|---|---|
+| `Postgres` | — | לא |
+| `migrator` | בעלים | לא |
+| `bot` | `bot_user` | **כן** — webhook של טלגרם |
+| `admin` | `admin_user` | כן, מאחורי auth + allowlist |
 
 ### למה `migrator` הוא שירות נפרד
 
-המיגרציות רצות כתפקיד בעלים — התפקיד היחיד שמותר לו ליצור roles, GRANTs ו-RLS. אם `apps/admin` היה מריץ אותן ב-pre-deploy, השירות שחשוף לניהול היה מחזיק את פרטי הבעלים, וההפרדה בין התפקידים הייתה קיימת רק על הנייר.
+המיגרציות רצות כתפקיד בעלים — התפקיד היחיד שרשאי ליצור roles, GRANTs ו-RLS. אילו `apps/admin` היה מריץ אותן ב-pre-deploy, השירות שממילא מגיע לכל ה-schemas היה מחזיק גם את פרטי הבעלים.
 
-שירות נפרד שמריץ `node scripts/migrate.mjs` ויוצא (`restartPolicyType: NEVER`) פותר גם כלל שני: **פרטי פרודקשן לא נוחתים על מחשב מקומי.** אף אחד לא מריץ מיגרציות מהלפטופ מול פרודקשן.
-
-הרצה חוזרת אינה מסוכנת — הרשומה ב-`migrations.applied` גורמת לקובץ שכבר רץ להידלג.
+שירות נפרד שרץ ויוצא (`restartPolicyType: NEVER`) פותר גם כלל שני: **פרטי פרודקשן לא נוחתים על מחשב מקומי** — אף אחד לא מריץ מיגרציות מהלפטופ. הרצה חוזרת אינה מסוכנת: קובץ שכבר רץ מסונן דרך `migrations.applied`.
 
 ---
 
-## סדר ההקמה
+## הקמה
 
-**staging לפני production.** אותם צעדים בדיוק, בשתי סביבות נפרדות של Railway, כל אחת עם ה-Postgres ומשתני הסביבה שלה.
+**staging לפני production.** אותם צעדים בשתי סביבות, כל אחת עם ה-Postgres והמשתנים שלה.
 
-### 1. Postgres
-הוסף את התוסף. הוא מייצר את משתני החיבור של הבעלים (`DATABASE_URL`, `PGHOST` וכו') **על שירות ה-Postgres**.
+### 1. התחברות וקישור — בדפדפן, פעם אחת
 
-### 2. migrator
-שירות מהריפו, Config path `ops/railway/migrator.json`, ומשתנה אחד:
-
-```
-MIGRATE_DATABASE_URL=${{Postgres.DATABASE_URL}}
+```bash
+railway login
 ```
 
-דיפלוי. הוא מריץ את ארבע המיגרציות ויוצא. בלוג צריכות להופיע ארבע שורות `applying`.
+צריך גם ש-Railway תקבל גישה לריפו ב-GitHub (התקנת ה-GitHub App על `berale-lerner/luxury`) — גם זה אישור חד-פעמי בדפדפן.
 
-בסוף השלב הזה קיימים `bot_user` ו-`admin_user` — **בלי סיסמה**, כלומר עדיין אי אפשר להתחבר איתם. זה מכוון: הסיסמאות אינן חלק מהמיגרציות ולא נכנסות לגיט.
+פרויקט חדש:
+
+```bash
+railway init --name luxury
+```
+
+פרויקט קיים:
+
+```bash
+railway link
+```
+
+### 2. תוכנית לפני החלה
+
+```bash
+railway config plan
+```
+
+**לקרוא את הפלט לפני `apply`.** אם הפרויקט כבר קיים ויש בו שירותים שאינם מופיעים ב-`.railway/railway.ts`, התוכנית תציע למחוק אותם — הקובץ הוא ההגדרה המלאה, לא תוספת. מחיקה דורשת `--confirm-destructive` בנפרד, וזו הסיבה.
+
+```bash
+railway config apply
+```
+
+בסוף השלב הזה קיימים ארבעת השירותים. ה-`migrator` ירוץ ויחיל את ארבע המיגרציות; `bot` ו-`admin` **ייכשלו בהפעלה** — עדיין אין להם סיסמת DB. זה הצפוי, והם יעלו בסוף שלב 4.
+
+בלוג של ה-`migrator` צריכות להופיע ארבע שורות `applying`:
+
+```bash
+railway logs --service migrator
+```
 
 ### 3. סיסמאות התפקידים — צעד שאתה מבצע, לא הקוד
 
-התחבר ל-Postgres של אותה סביבה (Railway → Postgres → Data / `railway connect`) והרץ:
+המיגרציה יוצרת את `bot_user` ו-`admin_user` **בלי סיסמה**, כלומר אי אפשר להתחבר איתם. הסיסמאות אינן חלק מהמיגרציות ולא נכנסות לגיט:
+
+```bash
+railway connect Postgres --ssh
+```
 
 ```sql
-ALTER ROLE bot_user   PASSWORD '<סיסמה שנוצרה במנהל הסיסמאות>';
+ALTER ROLE bot_user   PASSWORD '<סיסמה ממנהל הסיסמאות>';
 ALTER ROLE admin_user PASSWORD '<סיסמה אחרת>';
 ```
 
-שתי סיסמאות שונות, אחת לכל תפקיד, שנוצרות במנהל הסיסמאות ולא נכתבות בצ'אט, בקובץ או בקומיט. סיסמה שונה בין staging לפרודקשן.
+שתי סיסמאות שונות, אחת לכל תפקיד, שונות בין staging לפרודקשן, ולא נכתבות בצ'אט או בקובץ.
 
-### 4. bot
+### 4. הסודות — דרך stdin, לא כארגומנט
 
-משתנים, כולם ברמת השירות:
+`--stdin` שומר על הערך מחוץ להיסטוריית הפקודות:
 
-```
-DATABASE_URL=postgres://bot_user:<סיסמה>@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}
-TELEGRAM_BOT_TOKEN=<טוקן>
-TELEGRAM_WEBHOOK_SECRET=<מחרוזת אקראית>
-```
+```bash
+echo -n '<סיסמת bot_user>' | railway variable set BOT_DB_PASSWORD   --stdin --service bot
+echo -n '<טוקן טלגרם>'      | railway variable set TELEGRAM_BOT_TOKEN --stdin --service bot
+openssl rand -hex 32        | railway variable set TELEGRAM_WEBHOOK_SECRET --stdin --service bot
 
-`PORT` מוזרק על ידי Railway. הרשת הפנימית (`RAILWAY_PRIVATE_DOMAIN`) ולא הדומיין הציבורי — ה-DB לא צריך להיות נגיש מהאינטרנט.
-
-Generate Domain — זה השירות היחיד שנחשף בכוונה, בשביל ה-webhook.
-
-### 5. admin
-
-```
-DATABASE_URL=postgres://admin_user:<סיסמה>@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}
-GOOGLE_CLIENT_ID=<...>
-GOOGLE_CLIENT_SECRET=<...>
-BETTER_AUTH_SECRET=<מחרוזת אקראית>
-BETTER_AUTH_URL=https://<הדומיין של admin>
-TELEGRAM_BOT_TOKEN=<אותו טוקן, מוגדר שוב כאן ולא כמשתנה משותף>
+echo -n '<סיסמת admin_user>' | railway variable set ADMIN_DB_PASSWORD    --stdin --service admin
+echo -n '<google client id>' | railway variable set GOOGLE_CLIENT_ID     --stdin --service admin
+echo -n '<google secret>'    | railway variable set GOOGLE_CLIENT_SECRET --stdin --service admin
+openssl rand -hex 32         | railway variable set BETTER_AUTH_SECRET   --stdin --service admin
+echo -n '<טוקן טלגרם>'       | railway variable set TELEGRAM_BOT_TOKEN   --stdin --service admin
 ```
 
-הרשימה המלאה של המשתנים לכל שירות נמצאת ב-`apps/bot/.env.example` וב-`apps/admin/.env.example`.
+`DATABASE_URL` עצמו כבר מוגדר ב-IaC ומרכיב את עצמו מהסיסמה הזו ומכתובת הרשת הפנימית של Postgres — **שם התפקיד** (`bot_user` / `admin_user`) נמצא בקוד ונסקר בקוד, כי זה החלק שקובע מה השירות רשאי לראות.
+
+הרצה חוזרת של `railway config apply` לא דורסת את הערכים האלה: הם מסומנים `preserve()`.
+
+### 5. דומיינים
+
+```bash
+railway domain --service bot
+railway domain --service admin
+```
+
+`bot` הוא השירות היחיד שנחשף בכוונה — בשביל ה-webhook. `admin` מאחורי auth ו-allowlist.
 
 ### 6. השורה הראשונה ב-allowlist
 
-התחברות עם גוגל אינה הרשאה. עד שיש שורה בטבלה, אף אחד לא נכנס — כולל אתה:
+התחברות עם גוגל אינה הרשאה. עד שיש שורה בטבלה אף אחד לא נכנס, כולל אתה:
 
 ```sql
 INSERT INTO public.admin_allowlist (email, added_by) VALUES ('<המייל שלך>', 'bootstrap');
@@ -104,8 +134,9 @@ INSERT INTO public.admin_allowlist (email, added_by) VALUES ('<המייל שלך
 ## דיפלוי שוטף
 
 - **פריסה מגיט בלבד.** אין שינוי ידני בפרודקשן
-- push לענף שמחובר לסביבה → Railway בונה את השירותים שה-`watchPatterns` שלהם נגעו
-- **מיגרציה חדשה:** מריצים מחדש את `migrator` (Deploy) לפני שהקוד שתלוי בה עולה
+- push ל-`main` → נבנים רק השירותים שה-`watchPatterns` שלהם נגעו
+- **שינוי בתשתית** (משתנה, פקודת הפעלה, שירות חדש): עורכים את `.railway/railway.ts`, `railway config plan`, ואז `apply`
+- **מיגרציה חדשה:** `railway redeploy --service migrator` לפני שהקוד שתלוי בה עולה
 - CI מריץ typecheck וטסטים על כל PR ([.github/workflows/ci.yml](.github/workflows/ci.yml)). זו האכיפה — לא ה-Skill
 
 ---
