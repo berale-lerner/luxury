@@ -3,7 +3,7 @@
 Property management system for an apartment hotel. Read this file before making any change.
 Rules marked ❌ are hard boundaries — do not cross them even if the user explicitly asks. If a task requires crossing one, stop, explain why, and propose an alternative.
 
-Companion documents: [DESIGN.md](DESIGN.md) — what the system does. [STANDARDS.md](STANDARDS.md) — how the code is written. [TESTING.md](TESTING.md) — how it is tested.
+Companion documents: [DESIGN.md](DESIGN.md) — what the system does. [STANDARDS.md](STANDARDS.md) — how the code is written. [TESTING.md](TESTING.md) — how it is tested. [MINIHOTEL.md](MINIHOTEL.md) — the MiniHotel API, its response fields and what must never cross into the model.
 
 ---
 
@@ -15,8 +15,12 @@ Monorepo, two **completely separate** services (separate processes, separate dep
 apps/
 ├── bot/     Exposed to the internet. Talks to guests. bot_user only.
 └── admin/   Behind auth. Dashboards, management, business data. admin_user only.
+             server/ (Fastify) + web/ (React SPA, no data access), one deployment.
 packages/
-└── shared/  Types, validation, utils only. No credentials, no data access.
+├── shared/     Types, validation schemas, pure utils. No external dependencies,
+│               no credentials, no network, no data access.
+└── messaging/  The one outbound messaging client (Telegram, later WhatsApp).
+                Receives credentials as an argument; never reads env.
 ```
 
 **One repo ≠ one process.** The separation between the two services is a security boundary, not a code-organization choice.
@@ -24,14 +28,51 @@ packages/
 Shared code may *receive* credentials as an argument (see "Outbound messages") — it must never read them from env or hold them itself.
 
 ❌ Never merge the two services into one
-❌ Never add code to `packages/shared` that reads credentials or accesses the DB
+❌ Never add code to `packages/shared` that reads credentials, touches the network, or accesses the DB — it stays dependency-free so that importing a type never drags a channel SDK along with it
+❌ Never let `packages/messaging` read credentials from env — they are passed in by the service that owns them
 ❌ Never define env vars at the project level — only at the service level
+
+### Adding a new app
+
+The repo is built to grow. A new app under `apps/` starts with:
+
+- **Its own DB role, with no GRANTs at all.** Permissions are added one at a time, each with an explanation of what it exposes — the same bar as adding a GRANT to `bot_user`. A new app never reuses `admin_user` or `bot_user` because it is convenient
+- **Its own env vars at the service level**, shared with nothing
+- **Its own deployment and URL**
+- **Its own `package.json`** — pnpm's non-flat layout means it can only import what it declares
+
+**A new app is behind auth by default.** `apps/bot` is exposed to the internet for a specific reason, not because that is the natural state. Exposing a new app publicly is an explicit decision, recorded in DESIGN.md with its reasoning.
+
+❌ Never connect a new app as an existing app's DB role
+❌ Never expose a new app to the internet without recording the decision
+
+### How data separation scales
+
+The repo is expected to grow to several apps, with `apps/admin` reading data from all of them. That works, and it is why the boundaries below matter more with each app added, not less.
+
+**One schema per app.** A new app gets its own schema, and its role has access to that schema only. `admin_user` has access to all of them, so the admin side can join across apps in an ordinary query.
+
+```
+public      shared core data
+business    money — no app role ever touches it
+<app>       one schema per app, owned by that app alone
+```
+
+Separate databases per app would break this: cross-database queries in Postgres need FDW or dblink, which is real pain. Schemas keep the isolation and keep admin's queries simple.
+
+- **Data flows one way: apps write their own schema, `admin` reads from all of them.** Never the reverse
+- **`business` is not an app's schema.** It is a sensitivity boundary. No app role touches it, including a future app whose subject matter is financial — that app works through `admin`
+- If app A needs data owned by app B, it goes through the `tasks` queue or through `admin` — never a direct GRANT
+
+❌ Never grant one app access to another app's schema. "Just this once" is how this separation stops being real
+
+**A consequence worth stating:** as apps are added, `admin_user` accumulates access to everything. That is the intended design, and it makes `apps/admin` the highest-value target in the system. The allowlist, session security, and the rule that authentication is not authorization get more important with every app, not less.
 
 ---
 
 ## Database
 
-Single **plain Postgres** instance (not Supabase), two schemas:
+Single **plain Postgres** instance (not Supabase). Two schemas today; one schema per app as the repo grows (see "How data separation scales"):
 
 | Schema | Contains | bot_user | admin_user |
 |---|---|---|---|
@@ -91,7 +132,7 @@ The reply itself is an output channel: whatever a tool returns can end up quoted
 
 **All outgoing messages are sent by code, never by the agent.** The flow is: endpoint receives a message → calls the model → gets text back → *the code* calls the messaging layer.
 
-- One shared messaging layer serves both services. The logic lives in `packages/shared`; the client **receives credentials as a constructor argument** and never reads env itself. Each service injects its own
+- One shared messaging layer serves both services. It lives in `packages/messaging` — kept separate from `packages/shared` so an app that only needs a type does not pull in a channel SDK. The client **receives credentials as a constructor argument** and never reads env itself. Each service injects its own
 - The send function takes a `conversation_id` / `contact_id` — **never a raw address**. The destination is resolved from the DB
 - **Conversation replies:** the recipient comes from the verified inbound payload (session/channel). Automatic, since it is a reply on the same channel the message arrived on
 - **Confirmations and reminders:** rendered from a template in the DB, triggered by a human, with a full preview before sending. The model does not write them
@@ -160,7 +201,7 @@ Conversations are stored in `public`. The bot writes them as `bot_user` (RLS lim
 
 ## Admin access
 
-Sign-in to `apps/admin` is Google sign-in via Auth.js.
+Sign-in to `apps/admin` is Google sign-in via Better Auth.
 
 **Authentication is not authorization.** Signing in with Google proves who someone is. It does not prove they are allowed in — anyone on the internet with a Google account can complete the flow successfully.
 
