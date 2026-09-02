@@ -5,7 +5,7 @@ Property management system for an apartment hotel.
 Read [CLAUDE.md](CLAUDE.md) before changing anything — it holds the security
 boundaries. [DESIGN.md](DESIGN.md) describes what the system does,
 [STANDARDS.md](STANDARDS.md) how the code is written, [TESTING.md](TESTING.md)
-how it is tested.
+how it is tested, [DEPLOY.md](DEPLOY.md) how it is deployed.
 
 ## Layout
 

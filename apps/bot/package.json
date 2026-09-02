@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types --watch src/index.ts",
-    "start": "node --experimental-strip-types src/index.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -b",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@luxury/messaging": "workspace:*",
@@ -19,5 +19,6 @@
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
     "typescript": "^5.7.3"
-  }
+  },
+  "main": "./dist/index.js"
 }
