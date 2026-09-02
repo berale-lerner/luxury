@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Versions that cross the packages/shared boundary live here, in one place.
+# A library that appears in shared's public API (Zod) must be a single version
+# for everyone — two copies in memory means types that do not line up and
+# instanceof checks that fail for no visible reason. See DESIGN.md.
+catalog:
+  zod: ^3.24.1

@@ -1,0 +1,20 @@
+# Postgres for tests — the same clean container locally and in CI.
+# Not a shared development database: a long-lived database accumulates changes
+# made by hand, and a permission test can then pass because of a policy that
+# exists in a console and not in the migrations (TESTING.md).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: luxury_test
+    ports:
+      - '55432:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d luxury_test']
+      interval: 1s
+      timeout: 3s
+      retries: 30
