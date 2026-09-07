@@ -28,7 +28,17 @@ const SELECTABLE_COLUMNS: Record<string, string[]> = {
     'agent_muted',
     'last_message_at',
   ],
-  messages: ['id', 'conversation_id', 'direction', 'sender', 'body', 'created_at'],
+  // provider_update_id is readable so a redelivered update can be recognised
+  // as one already stored (migration 0005).
+  messages: [
+    'id',
+    'conversation_id',
+    'direction',
+    'sender',
+    'body',
+    'created_at',
+    'provider_update_id',
+  ],
   requests: ['id', 'conversation_id', 'guest_id', 'kind', 'status', 'created_at'],
 };
 

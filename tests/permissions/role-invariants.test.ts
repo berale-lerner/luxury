@@ -131,6 +131,8 @@ describe('the schema was built from the migrations', () => {
       '0002_core_tables.sql',
       '0003_grants.sql',
       '0004_rls.sql',
+      '0005_message_idempotency.sql',
+      '0006_conversation_lookup_by_chat.sql',
     ]);
   });
 });
