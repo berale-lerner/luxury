@@ -1,9 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
-
-export interface ConversationTurn {
-  readonly role: 'user' | 'assistant';
-  readonly text: string;
-}
+import type { ConversationTurn, ModelClient } from './model.js';
 
 export interface AgentReply {
   readonly text: string;
@@ -11,8 +6,8 @@ export interface AgentReply {
 }
 
 export interface AgentDeps {
-  readonly client: Anthropic;
-  readonly model?: string;
+  readonly model: ModelClient;
+  readonly maxTokens?: number;
 }
 
 /**
@@ -23,8 +18,9 @@ export interface AgentDeps {
  * adding a tool with its own validation and output whitelist — not loosening
  * anything here.
  *
- * The credentials live in the client the caller constructed. Nothing about
- * them reaches the model's context (CLAUDE.md, "Agent tools").
+ * Depends on the ModelClient port, not on any provider's SDK, so swapping the
+ * provider is a change in one adapter file. Credentials live in whatever the
+ * caller constructed and never reach the model's context (CLAUDE.md).
  */
 export async function generateReply(
   deps: AgentDeps,
@@ -32,39 +28,19 @@ export async function generateReply(
   promptVersion: number,
   history: readonly ConversationTurn[],
 ): Promise<AgentReply> {
-  const response = await deps.client.messages.create({
-    model: deps.model ?? 'claude-opus-5',
-    max_tokens: 1024,
-    // The published prompt is identical across every guest message, so it is
-    // worth caching: it is the stable prefix, and the varying conversation
-    // sits after it.
-    system: [
-      {
-        type: 'text',
-        text: systemPrompt,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    // A guest waiting in a chat window is latency-sensitive, and answering
-    // from a written knowledge base is not a reasoning-heavy task.
-    output_config: { effort: 'low' },
-    messages: history.map((turn) => ({ role: turn.role, content: turn.text })),
+  const response = await deps.model.complete({
+    systemPrompt,
+    turns: history,
+    ...(deps.maxTokens !== undefined ? { maxTokens: deps.maxTokens } : {}),
   });
 
-  // A safety decline is a normal outcome to handle, not an exception: the
-  // response arrives with HTTP 200 and no usable text.
-  if (response.stop_reason === 'refusal') {
-    throw new AgentRefusedError(response.stop_details?.category ?? null);
+  if (response.kind === 'refusal') {
+    throw new AgentRefusedError(deps.model.provider, response.category);
   }
 
-  const text = response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-    .map((block) => block.text)
-    .join('')
-    .trim();
-
+  const text = response.text.trim();
   if (text.length === 0) {
-    throw new Error('The model returned no text to send.');
+    throw new Error(`${deps.model.provider} returned no text to send.`);
   }
 
   return { text, promptVersion };
@@ -72,8 +48,11 @@ export async function generateReply(
 
 /** The model declined to answer. The guest gets a handover, not the reason. */
 export class AgentRefusedError extends Error {
-  constructor(readonly category: string | null) {
-    super(`The model declined to answer (category: ${category ?? 'unknown'})`);
+  constructor(
+    readonly provider: string,
+    readonly category: string | null,
+  ) {
+    super(`${provider} declined to answer (category: ${category ?? 'unknown'})`);
     this.name = 'AgentRefusedError';
   }
 }

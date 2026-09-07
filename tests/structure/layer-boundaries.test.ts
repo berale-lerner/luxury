@@ -68,6 +68,34 @@ describe('the model layer', () => {
   });
 });
 
+describe('the provider boundary', () => {
+  it('confines every vendor SDK import to agent/providers', async () => {
+    const offenders: string[] = [];
+    for (const file of await filesIn(BOT)) {
+      const relative = file.slice(ROOT.length);
+      if (relative.startsWith(`${BOT}/agent/providers/`)) continue;
+      // index.ts constructs the concrete client; that is what a composition
+      // root is for, and it is one file to read.
+      if (relative === `${BOT}/index.ts`) continue;
+
+      const specifiers = await importsOf(file);
+      if (specifiers.some((s) => /@anthropic-ai\/|openai|@google\/|mistralai|cohere/.test(s))) {
+        offenders.push(relative);
+      }
+    }
+    // A vendor type leaking into the reply loop is how a "provider-agnostic"
+    // layer quietly stops being one.
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the model port free of any vendor vocabulary', async () => {
+    const source = await readFile(join(ROOT, BOT, 'agent/model.ts'), 'utf8');
+    for (const word of ['anthropic', 'claude', 'openai', 'gpt', 'gemini']) {
+      expect(source.toLowerCase()).not.toContain(word);
+    }
+  });
+});
+
 describe('the channel layer', () => {
   it('never imports the model layer', async () => {
     const offenders = (await importsAcross(`${BOT}/channels`)).filter(

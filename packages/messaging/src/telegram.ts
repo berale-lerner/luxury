@@ -1,51 +1,35 @@
-import type { ConversationId } from '@luxury/shared';
-import type {
-  Channel,
-  DestinationResolver,
-  MessagingClient,
-  MessagingCredentials,
-  SendResult,
-} from './types.js';
+import type { ChannelSender, MessagingCredentials, SendResult } from './types.js';
 
 const TELEGRAM_API = 'https://api.telegram.org';
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-export interface TelegramClientOptions {
+export interface TelegramSenderOptions {
   /** Passed in by the service that owns them. This package reads no env. */
   readonly credentials: MessagingCredentials;
-  readonly resolver: DestinationResolver;
   readonly timeoutMs?: number;
   readonly baseUrl?: string;
-  readonly log?: (event: Record<string, unknown>) => void;
 }
 
 /**
- * The only way this system sends a message.
+ * Telegram's implementation of the outbound port.
  *
- * `sendToConversation` takes a conversation id and looks the destination up.
- * There is deliberately no overload that accepts an address: a function that
- * took one, reachable from the internet-facing service, is what turns a
- * prompt injection into a message sent somewhere it should not go.
+ * It is handed an already-resolved destination, so it has no way to look one
+ * up and no way to be given one by a caller. The router owns that lookup;
+ * this file owns Telegram's HTTP shape and nothing else.
  *
- * Timeout and logging live here so every caller gets them without
- * remembering to (CLAUDE.md, "Outbound messages").
+ * The timeout lives here because a hung request to a platform would otherwise
+ * hold a guest's reply open indefinitely.
  */
-export function createTelegramClient(options: TelegramClientOptions): MessagingClient {
+export function createTelegramSender(options: TelegramSenderOptions): ChannelSender {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const baseUrl = options.baseUrl ?? TELEGRAM_API;
-  const log = options.log ?? (() => {});
 
   return {
-    async sendToConversation(conversationId: ConversationId, text: string): Promise<SendResult> {
-      const destination = await options.resolver.resolve(conversationId);
+    channel: 'telegram',
 
-      if (destination.channel !== 'telegram') {
-        throw new Error(`This client sends on telegram, not ${destination.channel}.`);
-      }
-
+    async send(destination, text): Promise<SendResult> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const startedAt = Date.now();
 
       try {
         const response = await fetch(
@@ -59,8 +43,8 @@ export function createTelegramClient(options: TelegramClientOptions): MessagingC
         );
 
         if (!response.ok) {
-          // The body can echo the request; the message text is not logged
-          // (STANDARDS.md), so only the status is recorded.
+          // The body can echo the request, and message text is not logged
+          // (STANDARDS.md), so only the status is carried.
           throw new TelegramSendError(response.status);
         }
 
@@ -72,13 +56,6 @@ export function createTelegramClient(options: TelegramClientOptions): MessagingC
         if (!payload.ok || payload.result === undefined) {
           throw new TelegramSendError(response.status);
         }
-
-        log({
-          event: 'messaging.sent',
-          channel: 'telegram' satisfies Channel,
-          conversationId,
-          durationMs: Date.now() - startedAt,
-        });
 
         return { channel: 'telegram', providerMessageId: String(payload.result.message_id) };
       } finally {

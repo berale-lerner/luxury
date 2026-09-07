@@ -9,6 +9,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { buildApp } from '../../apps/bot/src/app.js';
+import { createTelegramChannel } from '../../apps/bot/src/channels/index.js';
 import { urlForRole } from '../helpers/config.js';
 import { telegramUpdateSchema, toInboundTextMessage } from '../../apps/bot/src/channels/telegram/update.js';
 
@@ -21,7 +22,11 @@ let pool: pg.Pool;
 
 beforeAll(async () => {
   pool = new pg.Pool({ connectionString: urlForRole('bot_user') });
-  app = buildApp({ pool, webhookSecret: SECRET, logLevel: 'silent' });
+  app = buildApp({
+    pool,
+    channels: [createTelegramChannel(SECRET)],
+    logLevel: 'silent',
+  });
   await app.ready();
 });
 

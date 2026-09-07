@@ -1,11 +1,12 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import { registerTelegramWebhook } from './channels/telegram/webhook.js';
+import { registerChannelWebhooks, type InboundChannel } from './channels/index.js';
 import type { ReplyDeps } from './reply.js';
 
 export interface BuildAppOptions {
   readonly pool: pg.Pool;
-  readonly webhookSecret: string;
+  /** The platforms this service listens on. One route is added per entry. */
+  readonly channels: readonly InboundChannel[];
   readonly logLevel?: string;
   /** Left out by the intake tests, which stop before the model call. */
   readonly reply?: Omit<ReplyDeps, 'pool'>;
@@ -25,9 +26,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  registerTelegramWebhook(app, {
+  registerChannelWebhooks(app, {
     pool: options.pool,
-    webhookSecret: options.webhookSecret,
+    channels: options.channels,
     ...(options.reply ? { reply: options.reply } : {}),
   });
 

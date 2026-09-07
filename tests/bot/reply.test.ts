@@ -13,6 +13,11 @@ import { recordInboundMessage } from '../../apps/bot/src/conversations/index.js'
 import { replyToConversation } from '../../apps/bot/src/reply.js';
 import { createDestinationResolver } from '../../apps/bot/src/conversations/index.js';
 import { PromptCache } from '../../apps/bot/src/agent/index.js';
+import type {
+  ModelClient,
+  ModelRequest,
+  ModelResponse,
+} from '../../apps/bot/src/agent/index.js';
 import { urlForRole } from '../helpers/config.js';
 
 let bot: pg.Pool;
@@ -31,20 +36,22 @@ function fakeMessaging() {
   return { client, sent };
 }
 
-/** Stands in for the Anthropic client, at the one method the agent calls. */
-function fakeModel(reply: string, onCall?: (params: any) => void) {
+/**
+ * A ModelClient, not a stand-in for a vendor SDK.
+ *
+ * This is what the port bought: the fake is four lines and says nothing
+ * about content blocks or stop reasons, so these tests do not have to be
+ * rewritten when the provider changes.
+ */
+function fakeModel(reply: string, onCall?: (request: ModelRequest) => void) {
   return {
-    client: {
-      messages: {
-        async create(params: any) {
-          onCall?.(params);
-          return {
-            stop_reason: 'end_turn',
-            content: [{ type: 'text', text: reply }],
-          };
-        },
+    model: {
+      provider: 'fake',
+      async complete(request: ModelRequest): Promise<ModelResponse> {
+        onCall?.(request);
+        return { kind: 'text', text: reply };
       },
-    } as any,
+    } satisfies ModelClient,
   };
 }
 
@@ -82,7 +89,7 @@ async function openConversation(text: string): Promise<{ id: ConversationId; mut
     updateId: `reply-${counter}-1`,
     chatId: `tg-reply-${counter}`,
     text,
-  });
+  }, 'telegram');
   return { id: recorded.conversationId, muted: recorded.agentMuted };
 }
 
@@ -155,18 +162,14 @@ describe('replying to a conversation', () => {
     expect(messaging.sent).toHaveLength(0);
   });
 
-  it('sends the published prompt as the system prompt, marked cacheable', async () => {
+  it('sends the published prompt as the system prompt', async () => {
     const conversation = await openConversation('What time is check-in?');
-    let seen: any;
+    let seen!: ModelRequest;
     const { value } = deps({ agent: fakeModel('Check-in is at 15:00.', (p) => (seen = p)) });
 
     await replyToConversation(value, conversation.id, false);
 
-    expect(seen.system[0].text).toBe('You are the assistant for a holiday apartment business.');
-    // The published prompt is identical on every message, so it is the stable
-    // prefix worth caching.
-    expect(seen.system[0].cache_control).toEqual({ type: 'ephemeral' });
-    expect(seen.model).toBe('claude-opus-5');
+    expect(seen.systemPrompt).toBe('You are the assistant for a holiday apartment business.');
   });
 
   it('replays the conversation so far, oldest first', async () => {
@@ -178,13 +181,13 @@ describe('replying to a conversation', () => {
       updateId: `reply-${counter}-2`,
       chatId: `tg-reply-${counter}`,
       text: 'Second question',
-    });
+    }, 'telegram');
 
-    let seen: any;
+    let seen!: ModelRequest;
     const { value } = deps({ agent: fakeModel('Answer two.', (p) => (seen = p)) });
     await replyToConversation(value, conversation.id, false);
 
-    expect(seen.messages.map((m: any) => [m.role, m.content])).toEqual([
+    expect(seen.turns.map((turn) => [turn.role, turn.text])).toEqual([
       ['user', 'First question'],
       ['assistant', 'Yes, we have availability in April.'],
       ['user', 'Second question'],
@@ -195,13 +198,12 @@ describe('replying to a conversation', () => {
     const conversation = await openConversation('Something disallowed');
     const messaging = fakeMessaging();
     const refusing = {
-      client: {
-        messages: {
-          async create() {
-            return { stop_reason: 'refusal', stop_details: { category: 'cyber' }, content: [] };
-          },
+      model: {
+        provider: 'fake',
+        async complete(): Promise<ModelResponse> {
+          return { kind: 'refusal', category: 'cyber' };
         },
-      } as any,
+      } satisfies ModelClient,
     };
 
     const outcome = await replyToConversation(

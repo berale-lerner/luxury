@@ -1,13 +1,28 @@
-import type { ConversationId } from '@luxury/shared';
+import type { ChannelName, ConversationId } from '@luxury/shared';
 
-export type Channel = 'telegram';
+export type Channel = ChannelName;
 
 /**
  * Credentials are passed in by the service that owns them. This package never
  * reads them from the environment (CLAUDE.md, "Outbound messages").
+ *
+ * One field per platform, all optional but for the ones actually wired up:
+ * a service configures the channels it sends on and no others.
  */
 export interface MessagingCredentials {
   readonly telegramBotToken: string;
+}
+
+/**
+ * One platform's sender.
+ *
+ * Narrower than MessagingClient: it is handed a destination that has already
+ * been resolved, so an adapter never touches the database and never has a
+ * chance to accept an address from a caller.
+ */
+export interface ChannelSender {
+  readonly channel: Channel;
+  send(destination: { chatId: string }, text: string): Promise<SendResult>;
 }
 
 /**

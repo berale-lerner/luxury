@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { PoolClient } from 'pg';
-import type { ConversationId } from '@luxury/shared';
+import type { ChannelName, ConversationId } from '@luxury/shared';
 /**
  * One inbound guest message, in terms this layer understands.
  *
@@ -15,8 +15,6 @@ export interface InboundTextMessage {
   readonly chatId: string;
   readonly text: string;
 }
-
-const CHANNEL = 'telegram';
 
 export interface RecordedInbound {
   readonly conversationId: ConversationId;
@@ -39,6 +37,7 @@ export interface RecordedInbound {
 export async function recordInboundMessage(
   pool: pg.Pool,
   inbound: InboundTextMessage,
+  channel: ChannelName,
 ): Promise<RecordedInbound> {
   const client = await pool.connect();
   try {
@@ -51,7 +50,7 @@ export async function recordInboundMessage(
       inbound.chatId,
     ]);
 
-    const conversation = await findOrCreateConversation(client, inbound.chatId);
+    const conversation = await findOrCreateConversation(client, channel, inbound.chatId);
 
     // From here the narrower scope applies: this conversation's rows only.
     await client.query('SELECT set_config($1, $2, true)', [
@@ -103,13 +102,14 @@ interface ConversationRow {
 
 async function findOrCreateConversation(
   client: PoolClient,
+  channel: ChannelName,
   chatId: string,
 ): Promise<ConversationRow> {
   const existing = await client.query<{ id: string; agent_muted: boolean }>(
     `SELECT id, agent_muted
        FROM public.conversations
       WHERE channel = $1 AND channel_chat_id = $2`,
-    [CHANNEL, chatId],
+    [channel, chatId],
   );
 
   const found = existing.rows[0];
@@ -125,7 +125,7 @@ async function findOrCreateConversation(
   await client.query(
     `INSERT INTO public.conversations (id, channel, channel_chat_id)
      VALUES ($1, $2, $3)`,
-    [id, CHANNEL, chatId],
+    [id, channel, chatId],
   );
 
   return { id, agentMuted: false };

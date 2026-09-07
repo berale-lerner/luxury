@@ -46,7 +46,7 @@ describe('recording an inbound message', () => {
       updateId: '1001',
       chatId: chat('first'),
       text: 'Do you have anything free in April?',
-    });
+    }, 'telegram');
 
     expect(result.stored).toBe(true);
     expect(result.agentMuted).toBe(false);
@@ -68,12 +68,12 @@ describe('recording an inbound message', () => {
       updateId: '2001',
       chatId,
       text: 'Hello',
-    });
+    }, 'telegram');
     const second = await recordInboundMessage(pool, {
       updateId: '2002',
       chatId,
       text: 'Are you there?',
-    });
+    }, 'telegram');
 
     // The regression this guards: without a way to look a conversation up by
     // chat id, every message would open a new one.
@@ -85,8 +85,8 @@ describe('recording an inbound message', () => {
     const chatId = chat('redelivery');
     const update = { updateId: '3001', chatId, text: 'Sent once, delivered twice' };
 
-    const first = await recordInboundMessage(pool, update);
-    const retry = await recordInboundMessage(pool, update);
+    const first = await recordInboundMessage(pool, update, 'telegram');
+    const retry = await recordInboundMessage(pool, update, 'telegram');
 
     expect(first.stored).toBe(true);
     // Telegram retries whenever the endpoint was slow. Answering the same
@@ -101,12 +101,12 @@ describe('recording an inbound message', () => {
       updateId: '4001',
       chatId: chat('sep-a'),
       text: 'from A',
-    });
+    }, 'telegram');
     const b = await recordInboundMessage(pool, {
       updateId: '4002',
       chatId: chat('sep-b'),
       text: 'from B',
-    });
+    }, 'telegram');
 
     expect(a.conversationId).not.toBe(b.conversationId);
     expect(await messagesFor(a.conversationId)).toHaveLength(1);
@@ -119,7 +119,7 @@ describe('recording an inbound message', () => {
       updateId: '5001',
       chatId,
       text: 'first',
-    });
+    }, 'telegram');
 
     await admin.query('UPDATE public.conversations SET agent_muted = true WHERE id = $1', [
       opened.conversationId,
@@ -129,7 +129,7 @@ describe('recording an inbound message', () => {
       updateId: '5002',
       chatId,
       text: 'second',
-    });
+    }, 'telegram');
 
     // The message is still recorded — the manager needs to see it. What the
     // flag governs is whether the agent may answer.
@@ -142,7 +142,7 @@ describe('recording an inbound message', () => {
       updateId: '6001',
       chatId: chat('timestamp'),
       text: 'tick',
-    });
+    }, 'telegram');
 
     const row = await admin.query(
       'SELECT last_message_at FROM public.conversations WHERE id = $1',
