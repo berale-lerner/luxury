@@ -9,7 +9,8 @@
     "clean": "rm -rf dist *.tsbuildinfo",
     "build:web": "vite build",
     "dev:web": "vite",
-    "typecheck:web": "tsc -p web/tsconfig.json --noEmit"
+    "typecheck:web": "tsc -p web/tsconfig.json --noEmit",
+    "dev": "node --env-file=.env.local dist/dev-server.js"
   },
   "dependencies": {
     "@fastify/static": "^10.1.3",
