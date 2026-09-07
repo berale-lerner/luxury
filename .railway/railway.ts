@@ -104,10 +104,12 @@ export default defineRailway(() => {
       DATABASE_URL:
         'postgres://admin_user:${{ADMIN_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}',
       ADMIN_DB_PASSWORD: preserve(),
+      // Google sign-in. Absent means nobody can sign in, and the service
+      // refuses to start rather than serving an open dashboard.
       GOOGLE_CLIENT_ID: preserve(),
       GOOGLE_CLIENT_SECRET: preserve(),
-      BETTER_AUTH_SECRET: preserve(),
-      BETTER_AUTH_URL: 'https://${{RAILWAY_PUBLIC_DOMAIN}}',
+      AUTH_SECRET: preserve(),
+      PUBLIC_URL: 'https://${{RAILWAY_PUBLIC_DOMAIN}}',
       // Declared again here rather than shared with the bot. A project-level
       // variable would hand both services one environment and undo the
       // separation this whole structure exists for.
