@@ -19,8 +19,8 @@
     "dev:db:down": "docker compose -f docker-compose.dev.yml down",
     "dev:setup": "node scripts/dev-setup.mjs",
     "dev:publish": "node scripts/publish-prompt.mjs guest --url postgres://postgres:postgres@localhost:55433/luxury_dev",
-    "dev:bot": "node --env-file=.env.local apps/bot/dist/index.js",
-    "telegram:webhook": "node --env-file=.env.local scripts/set-telegram-webhook.mjs"
+    "dev:bot": "node --env-file=apps/bot/.env.local apps/bot/dist/index.js",
+    "telegram:webhook": "node --env-file=apps/bot/.env.local scripts/set-telegram-webhook.mjs"
   },
   "devDependencies": {
     "@luxury/messaging": "workspace:^",
