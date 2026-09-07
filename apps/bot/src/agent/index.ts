@@ -10,9 +10,12 @@
  * accident, and the separation is enforced in tests/structure.
  *
  * The provider sits behind the ModelClient port in model.ts. Only the
- * adapters under providers/ import a vendor SDK.
+ * adapters under providers/ and the registry that constructs them import a
+ * vendor SDK; registry.ts is where the choice between them is made.
  */
 export * from './model.js';
 export * from './generate.js';
 export * from './prompt.js';
+export * from './registry.js';
 export * from './providers/anthropic.js';
+export * from './providers/gemini.js';

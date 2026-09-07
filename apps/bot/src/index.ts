@@ -1,9 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
-import { loadConfig } from './config.js';
+import { loadConfig, modelSelection, providerKeys } from './config.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
-import { PromptCache, createAnthropicModel } from './agent/index.js';
+import { PromptCache, createModel } from './agent/index.js';
 import {
   createTelegramChannel,
   registerTelegramWebhook,
@@ -22,11 +21,7 @@ const app = buildApp({
   channels: [createTelegramChannel(config.TELEGRAM_WEBHOOK_SECRET)],
   reply: {
     prompts: new PromptCache(pool, config.AGENT_KEY),
-    agent: {
-      model: createAnthropicModel({
-        client: new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }),
-      }),
-    },
+    agent: { model: createModel(modelSelection(config), providerKeys(config)) },
     // Credentials are handed to the messaging package here. It never reads
     // them itself (CLAUDE.md, "Architecture").
     messaging: createMessagingRouter({

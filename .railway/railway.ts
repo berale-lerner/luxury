@@ -74,7 +74,12 @@ export default defineRailway(() => {
       BOT_DB_PASSWORD: preserve(),
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_WEBHOOK_SECRET: preserve(),
+      // Which provider answers guests, and the keys available to switch
+      // between them. Both keys may be present; only the selected provider's
+      // is required, and swapping is one variable rather than a deploy.
+      MODEL_PROVIDER: 'gemini',
       ANTHROPIC_API_KEY: preserve(),
+      GEMINI_API_KEY: preserve(),
       // Which agent's published prompt this service serves.
       AGENT_KEY: 'guest',
       LOG_LEVEL: 'info',

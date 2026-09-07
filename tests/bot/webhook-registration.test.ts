@@ -105,10 +105,13 @@ describe('registering the webhook', () => {
     });
 
     try {
-      const error = await registerTelegramWebhook({
+      const error = (await registerTelegramWebhook({
         ...base,
         botToken: 'a-very-secret-token',
-      }).catch((e: unknown) => e as Error);
+      }).then(
+        () => new Error('expected the registration to be rejected'),
+        (e: unknown) => e as Error,
+      )) as Error;
 
       // An error message reaches logs, and a token that reaches a log is a
       // token to rotate (CLAUDE.md, "Operations").

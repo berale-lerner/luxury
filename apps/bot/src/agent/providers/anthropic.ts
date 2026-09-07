@@ -11,7 +11,7 @@ import type { ModelClient, ModelRequest, ModelResponse } from '../model.js';
  */
 
 export interface AnthropicModelOptions {
-  readonly client: Anthropic;
+  readonly apiKey: string;
   readonly model?: string;
   /**
    * A guest waiting in a chat window is latency-sensitive, and answering from
@@ -21,11 +21,15 @@ export interface AnthropicModelOptions {
 }
 
 export function createAnthropicModel(options: AnthropicModelOptions): ModelClient {
+  // The vendor client is built here rather than handed in, so the SDK stays
+  // inside this directory and the registry can dispatch without importing one.
+  const client = new Anthropic({ apiKey: options.apiKey });
+
   return {
     provider: 'anthropic',
 
     async complete(request: ModelRequest): Promise<ModelResponse> {
-      const response = await options.client.messages.create({
+      const response = await client.messages.create({
         model: options.model ?? 'claude-opus-5',
         max_tokens: request.maxTokens ?? 1024,
         // The published prompt is identical across every guest message, so it
