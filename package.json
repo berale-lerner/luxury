@@ -17,6 +17,8 @@
     "clean": "tsc -b --clean && rm -rf tests/*.tsbuildinfo"
   },
   "devDependencies": {
+    "@luxury/messaging": "workspace:^",
+    "@luxury/shared": "workspace:^",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
     "railway": "^3.11.0",

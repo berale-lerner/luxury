@@ -14,6 +14,10 @@ import { z } from 'zod';
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(16),
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  ANTHROPIC_API_KEY: z.string().min(1),
+  /** Which agent's published prompt this service serves. */
+  AGENT_KEY: z.string().min(1).default('guest'),
   PORT: z.coerce.number().int().positive().default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });

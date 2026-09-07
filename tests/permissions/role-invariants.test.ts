@@ -133,6 +133,7 @@ describe('the schema was built from the migrations', () => {
       '0004_rls.sql',
       '0005_message_idempotency.sql',
       '0006_conversation_lookup_by_chat.sql',
+      '0007_agent_prompts.sql',
     ]);
   });
 });

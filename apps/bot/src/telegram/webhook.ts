@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { recordInboundMessage } from '../conversations.js';
+import type { ReplyDeps } from '../reply.js';
+import { replyToConversation } from '../reply.js';
 import { telegramUpdateSchema, toInboundTextMessage } from './update.js';
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token';
@@ -24,6 +26,8 @@ function secretMatches(received: string | undefined, expected: string): boolean 
 export interface WebhookDeps {
   readonly pool: pg.Pool;
   readonly webhookSecret: string;
+  /** Omitted in tests that only exercise the intake path. */
+  readonly reply?: Omit<ReplyDeps, 'pool'>;
 }
 
 /**
@@ -83,6 +87,16 @@ export function registerTelegramWebhook(app: FastifyInstance, deps: WebhookDeps)
         },
         'inbound message recorded',
       );
+
+      // A redelivery is stored once and answered once. Without this check a
+      // slow response would have the guest receive the same reply twice.
+      if (result.stored && deps.reply) {
+        await replyToConversation(
+          { pool: deps.pool, ...deps.reply, log: (event) => request.log.info(event) },
+          result.conversationId,
+          result.agentMuted,
+        );
+      }
     } catch (error) {
       // Logged without the message body: conversation content is not written
       // to logs (STANDARDS.md).

@@ -1,11 +1,14 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import { registerTelegramWebhook } from './telegram/webhook.js';
+import type { ReplyDeps } from './reply.js';
 
 export interface BuildAppOptions {
   readonly pool: pg.Pool;
   readonly webhookSecret: string;
   readonly logLevel?: string;
+  /** Left out by the intake tests, which stop before the model call. */
+  readonly reply?: Omit<ReplyDeps, 'pool'>;
 }
 
 /**
@@ -25,6 +28,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerTelegramWebhook(app, {
     pool: options.pool,
     webhookSecret: options.webhookSecret,
+    ...(options.reply ? { reply: options.reply } : {}),
   });
 
   return app;
