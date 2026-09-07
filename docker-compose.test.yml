@@ -2,6 +2,10 @@
 # Not a shared development database: a long-lived database accumulates changes
 # made by hand, and a permission test can then pass because of a policy that
 # exists in a console and not in the migrations (TESTING.md).
+# Explicit project name so this container and the development one in
+# docker-compose.dev.yml coexist instead of replacing each other.
+name: luxury-test
+
 services:
   postgres:
     image: postgres:16-alpine

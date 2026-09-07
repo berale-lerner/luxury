@@ -31,3 +31,7 @@ pnpm-debug.log*
 
 # Railway CLI local link state (the project definition itself, .railway/railway.ts, IS committed)
 .railway/*.json
+
+# Local env, per developer. Real tokens live here and nowhere else.
+.env.local
+.env.*.local

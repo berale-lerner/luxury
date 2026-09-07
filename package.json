@@ -14,7 +14,13 @@
     "test": "vitest run",
     "test:permissions": "vitest run tests/permissions",
     "build": "tsc -b",
-    "clean": "tsc -b --clean && rm -rf tests/*.tsbuildinfo"
+    "clean": "tsc -b --clean && rm -rf tests/*.tsbuildinfo",
+    "dev:db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "dev:db:down": "docker compose -f docker-compose.dev.yml down",
+    "dev:setup": "node scripts/dev-setup.mjs",
+    "dev:publish": "node scripts/publish-prompt.mjs guest --url postgres://postgres:postgres@localhost:55433/luxury_dev",
+    "dev:bot": "node --env-file=.env.local apps/bot/dist/index.js",
+    "telegram:webhook": "node --env-file=.env.local scripts/set-telegram-webhook.mjs"
   },
   "devDependencies": {
     "@luxury/messaging": "workspace:^",

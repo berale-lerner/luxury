@@ -1,0 +1,30 @@
+# A local development database that survives a restart.
+#
+# Separate from docker-compose.test.yml on purpose: that one is tmpfs and gets
+# wiped, which is right for tests and wrong for a database holding the prompt
+# you just published.
+#
+# The project name is set explicitly. Without it both files default to the
+# directory name, produce the same container name, and starting one quietly
+# replaces the other.
+name: luxury-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: luxury_dev
+    ports:
+      - '55433:5432'
+    volumes:
+      - luxury_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d luxury_dev']
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  luxury_dev_data:
