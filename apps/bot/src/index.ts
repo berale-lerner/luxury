@@ -4,7 +4,11 @@ import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
 import { PromptCache, createAnthropicModel } from './agent/index.js';
-import { createTelegramChannel } from './channels/index.js';
+import {
+  createTelegramChannel,
+  registerTelegramWebhook,
+  TELEGRAM_WEBHOOK_PATH,
+} from './channels/index.js';
 import { createDestinationResolver } from './conversations/index.js';
 
 const config = loadConfig();
@@ -47,3 +51,26 @@ process.on('SIGTERM', () => void close('SIGTERM'));
 process.on('SIGINT', () => void close('SIGINT'));
 
 await app.listen({ port: config.PORT, host: '0.0.0.0' });
+
+// Registered after the server is listening, so Telegram never delivers to a
+// port that is not answering yet. Only where there is a public address to
+// register: locally the webhook is pointed at a tunnel by hand.
+if (config.RAILWAY_PUBLIC_DOMAIN) {
+  try {
+    const registered = await registerTelegramWebhook({
+      botToken: config.TELEGRAM_BOT_TOKEN,
+      webhookSecret: config.TELEGRAM_WEBHOOK_SECRET,
+      publicUrl: `https://${config.RAILWAY_PUBLIC_DOMAIN}`,
+      path: TELEGRAM_WEBHOOK_PATH,
+    });
+    app.log.info(
+      { event: 'telegram.webhook.registered', url: registered.url, bot: registered.username },
+      'telegram will deliver here',
+    );
+  } catch (error) {
+    // Not fatal. The service is up and can still be reached; what is broken
+    // is delivery, and a running service with a loud log is easier to
+    // diagnose than a crash loop.
+    app.log.error({ event: 'telegram.webhook.registration_failed', err: error }, 'could not register the webhook');
+  }
+}

@@ -18,6 +18,12 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1),
   /** Which agent's published prompt this service serves. */
   AGENT_KEY: z.string().min(1).default('guest'),
+  /**
+   * Set by Railway. Present in a deployed environment and absent locally,
+   * which is exactly the condition for registering the webhook: a laptop
+   * has no public address to register.
+   */
+  RAILWAY_PUBLIC_DOMAIN: z.string().min(1).optional(),
   PORT: z.coerce.number().int().positive().default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });

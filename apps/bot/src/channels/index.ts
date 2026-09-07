@@ -16,3 +16,4 @@ export * from './channel.js';
 export * from './webhook.js';
 export * from './telegram/channel.js';
 export * from './telegram/update.js';
+export * from './telegram/register.js';

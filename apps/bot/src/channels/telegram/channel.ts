@@ -4,6 +4,9 @@ import { telegramUpdateSchema, toInboundTextMessage } from './update.js';
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token';
 
+/** Defined once: the route this channel serves and the URL it registers. */
+export const TELEGRAM_WEBHOOK_PATH = '/telegram/webhook';
+
 /**
  * Compares two secrets without leaking their contents through timing.
  *
@@ -30,7 +33,7 @@ function secretMatches(received: string | undefined, expected: string): boolean 
 export function createTelegramChannel(webhookSecret: string): InboundChannel {
   return {
     name: 'telegram',
-    webhookPath: '/telegram/webhook',
+    webhookPath: TELEGRAM_WEBHOOK_PATH,
 
     receive(request: InboundRequest): InboundResult {
       const header = request.headers[SECRET_HEADER];
