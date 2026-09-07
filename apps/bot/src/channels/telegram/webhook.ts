@@ -1,9 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type pg from 'pg';
-import { recordInboundMessage } from '../conversations.js';
-import type { ReplyDeps } from '../reply.js';
-import { replyToConversation } from '../reply.js';
+import { recordInboundMessage } from '../../conversations/index.js';
+import type { ReplyDeps } from '../../reply.js';
+import { replyToConversation } from '../../reply.js';
 import { telegramUpdateSchema, toInboundTextMessage } from './update.js';
 
 const SECRET_HEADER = 'x-telegram-bot-api-secret-token';

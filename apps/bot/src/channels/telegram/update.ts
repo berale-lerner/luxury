@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { InboundTextMessage } from '../../conversations/index.js';
 
 /**
  * The slice of a Telegram Update this service acts on.
@@ -38,13 +39,6 @@ export const telegramUpdateSchema = z.object({
 });
 
 export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>;
-
-/** A validated update that carries text this service can act on. */
-export interface InboundTextMessage {
-  readonly updateId: string;
-  readonly chatId: string;
-  readonly text: string;
-}
 
 /**
  * Narrows a valid update to the one case handled today.

@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import { registerTelegramWebhook } from './telegram/webhook.js';
+import { registerTelegramWebhook } from './channels/telegram/webhook.js';
 import type { ReplyDeps } from './reply.js';
 
 export interface BuildAppOptions {

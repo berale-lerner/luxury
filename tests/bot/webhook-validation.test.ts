@@ -10,7 +10,7 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { buildApp } from '../../apps/bot/src/app.js';
 import { urlForRole } from '../helpers/config.js';
-import { telegramUpdateSchema, toInboundTextMessage } from '../../apps/bot/src/telegram/update.js';
+import { telegramUpdateSchema, toInboundTextMessage } from '../../apps/bot/src/channels/telegram/update.js';
 
 const SECRET = 'a-secret-of-at-least-16-chars';
 

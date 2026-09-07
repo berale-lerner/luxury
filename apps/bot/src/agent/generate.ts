@@ -1,8 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-/** How much conversation history is replayed to the model. */
-export const HISTORY_LIMIT = 20;
-
 export interface ConversationTurn {
   readonly role: 'user' | 'assistant';
   readonly text: string;

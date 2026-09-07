@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
-import { recordInboundMessage } from '../../apps/bot/src/conversations.js';
+import { recordInboundMessage } from '../../apps/bot/src/conversations/index.js';
 import { urlForRole } from '../helpers/config.js';
 
 let pool: pg.Pool;

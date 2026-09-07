@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
-import { loadPublishedPrompt, PromptCache } from '../../apps/bot/src/prompt.js';
+import { loadPublishedPrompt, PromptCache } from '../../apps/bot/src/agent/index.js';
 import { urlForRole } from '../helpers/config.js';
 import { errorFrom, INSUFFICIENT_PRIVILEGE } from '../helpers/db.js';
 

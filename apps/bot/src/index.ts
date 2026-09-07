@@ -3,8 +3,8 @@ import { createTelegramClient } from '@luxury/messaging';
 import { loadConfig } from './config.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
-import { PromptCache } from './prompt.js';
-import { createDestinationResolver } from './reply.js';
+import { PromptCache } from './agent/index.js';
+import { createDestinationResolver } from './conversations/index.js';
 
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);

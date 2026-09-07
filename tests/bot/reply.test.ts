@@ -9,9 +9,10 @@ import { describe, expect, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
 import type { ConversationId } from '@luxury/shared';
 import type { MessagingClient } from '@luxury/messaging';
-import { recordInboundMessage } from '../../apps/bot/src/conversations.js';
-import { replyToConversation, createDestinationResolver } from '../../apps/bot/src/reply.js';
-import { PromptCache } from '../../apps/bot/src/prompt.js';
+import { recordInboundMessage } from '../../apps/bot/src/conversations/index.js';
+import { replyToConversation } from '../../apps/bot/src/reply.js';
+import { createDestinationResolver } from '../../apps/bot/src/conversations/index.js';
+import { PromptCache } from '../../apps/bot/src/agent/index.js';
 import { urlForRole } from '../helpers/config.js';
 
 let bot: pg.Pool;

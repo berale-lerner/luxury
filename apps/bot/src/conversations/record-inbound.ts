@@ -2,7 +2,19 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { PoolClient } from 'pg';
 import type { ConversationId } from '@luxury/shared';
-import type { InboundTextMessage } from './telegram/update.js';
+/**
+ * One inbound guest message, in terms this layer understands.
+ *
+ * Channel-neutral on purpose: it carries the provider's update id and the
+ * chat it arrived on, and says nothing about Telegram. A channel produces
+ * this shape; adding WhatsApp adds a producer, not a second storage path.
+ */
+export interface InboundTextMessage {
+  /** The provider's id for this delivery, used to reject a redelivery. */
+  readonly updateId: string;
+  readonly chatId: string;
+  readonly text: string;
+}
 
 const CHANNEL = 'telegram';
 
