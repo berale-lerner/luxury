@@ -41,6 +41,15 @@ function parseArgs(argv) {
   return args;
 }
 
+/**
+ * Reads the documents and joins them, shared with the deploy step so the
+ * ordering and the separator have exactly one definition.
+ */
+export async function assemble(dir) {
+  const documents = await readDocuments(dir);
+  return { documents, body: documents.map((doc) => doc.body).join(SEPARATOR) };
+}
+
 async function readDocuments(dir) {
   const entries = (await readdir(dir)).filter((name) => name.endsWith('.md')).sort();
   if (entries.length === 0) {
@@ -58,8 +67,7 @@ async function readDocuments(dir) {
 }
 
 export async function publish({ connectionString, agentKey, dir, publishedBy }) {
-  const documents = await readDocuments(dir);
-  const body = documents.map((doc) => doc.body).join(SEPARATOR);
+  const { documents, body } = await assemble(dir);
 
   const client = new pg.Client({ connectionString });
   await client.connect();

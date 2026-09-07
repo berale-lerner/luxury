@@ -33,15 +33,21 @@ export default defineRailway(() => {
     build: {
       builder: 'NIXPACKS',
       buildCommand: 'pnpm install --frozen-lockfile',
-      watchPatterns: ['migrations/**', 'scripts/migrate.mjs', 'pnpm-lock.yaml'],
+      watchPatterns: ['migrations/**', 'scripts/*.mjs', 'prompts/**', 'pnpm-lock.yaml'],
     },
     deploy: {
-      startCommand: 'node scripts/migrate.mjs',
+      startCommand: 'node scripts/deploy.mjs',
       numReplicas: 1,
       restartPolicyType: 'NEVER',
     },
     env: {
       MIGRATE_DATABASE_URL: ref(db, 'DATABASE_URL'),
+      // The owner role is the only one that may set another role's password.
+      // Migrations create bot_user and admin_user without one, because a
+      // password belongs to an environment and not to git; this service
+      // applies them, and the consuming services read the same values.
+      BOT_DB_PASSWORD: preserve(),
+      ADMIN_DB_PASSWORD: preserve(),
     },
   });
 
@@ -68,6 +74,9 @@ export default defineRailway(() => {
       BOT_DB_PASSWORD: preserve(),
       TELEGRAM_BOT_TOKEN: preserve(),
       TELEGRAM_WEBHOOK_SECRET: preserve(),
+      ANTHROPIC_API_KEY: preserve(),
+      // Which agent's published prompt this service serves.
+      AGENT_KEY: 'guest',
       LOG_LEVEL: 'info',
     },
   });
