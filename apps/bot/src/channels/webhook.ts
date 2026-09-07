@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import { recordInboundMessage } from '../conversations/index.js';
+import { awaitsReply, recordInboundMessage } from '../conversations/index.js';
 import type { ReplyDeps } from '../reply.js';
 import { replyToConversation } from '../reply.js';
 import type { InboundChannel } from './channel.js';
@@ -68,9 +68,11 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
           'inbound message recorded',
         );
 
-        // A redelivery is stored once and answered once. Without this check a
-        // slow response would have the guest receive the same reply twice.
-        if (recorded.stored && deps.reply) {
+        // Answered when the conversation is still waiting on one, rather than
+        // when this particular delivery stored a row. A redelivery after a
+        // failed attempt stores nothing, and keying on that left the guest's
+        // message stored and permanently unanswered.
+        if (deps.reply && (await awaitsReply(deps.pool, recorded.conversationId))) {
           await replyToConversation(
             { pool: deps.pool, ...deps.reply, log: (event) => request.log.info(event) },
             recorded.conversationId,
