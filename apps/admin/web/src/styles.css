@@ -50,7 +50,15 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root { height: 100%; }
+/* dvh, not 100%.
+ *
+ * On mobile Safari and Chrome the visual viewport shrinks as the browser
+ * toolbars appear, and a percentage height keeps measuring against the larger
+ * window. The bottom of the page then sits under the toolbar — which is
+ * exactly where the composer is, so the one control the screen exists for is
+ * the first thing to disappear. vh is the fallback for browsers without dvh;
+ * it is no worse than what it replaces. */
+html, body, #root { height: 100vh; height: 100dvh; }
 
 body {
   margin: 0;
@@ -73,7 +81,8 @@ input, textarea { font: inherit; color: inherit; }
 .shell {
   display: grid;
   grid-template-columns: minmax(320px, 380px) 1fr;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -266,6 +275,11 @@ input, textarea { font: inherit; color: inherit; }
   border-top: 1px solid var(--border);
   background: var(--surface);
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  /* Stays put when the on-screen keyboard opens, rather than being pushed
+     out of view along with the rest of the column. */
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
 }
 .composer-inner { max-width: 720px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
 
