@@ -45,7 +45,7 @@ export async function listConversations(
   }>(
     `SELECT c.id,
             c.channel,
-            g.display_name        AS guest_name,
+            coalesce(g.display_name, c.contact_name) AS guest_name,
             c.status,
             c.agent_muted,
             c.last_message_at,
@@ -100,7 +100,8 @@ export async function getConversation(
     agent_muted: boolean;
     last_message_at: Date | null;
   }>(
-    `SELECT c.id, c.channel, g.display_name AS guest_name, c.status, c.agent_muted,
+    `SELECT c.id, c.channel, coalesce(g.display_name, c.contact_name) AS guest_name,
+            c.status, c.agent_muted,
             c.last_message_at
        FROM public.conversations c
        LEFT JOIN public.guests g ON g.id = c.guest_id

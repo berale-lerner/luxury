@@ -151,3 +151,57 @@ describe('recording an inbound message', () => {
     expect(row.rows[0].last_message_at).not.toBeNull();
   });
 });
+
+describe('the name the platform reports', () => {
+  it('is stored when the conversation is created', async () => {
+    const result = await recordInboundMessage(
+      pool,
+      { updateId: '7001', chatId: chat('named'), text: 'hello', contactName: 'Dana Cohen' },
+      'telegram',
+    );
+
+    const row = await admin.query<{ contact_name: string | null }>(
+      'SELECT contact_name FROM public.conversations WHERE id = $1',
+      [result.conversationId],
+    );
+    expect(row.rows[0]!.contact_name).toBe('Dana Cohen');
+  });
+
+  it('follows a rename', async () => {
+    const chatId = chat('renamed');
+    const first = await recordInboundMessage(
+      pool,
+      { updateId: '7101', chatId, text: 'hello', contactName: 'Dana' },
+      'telegram',
+    );
+    await recordInboundMessage(
+      pool,
+      { updateId: '7102', chatId, text: 'again', contactName: 'Dana Cohen' },
+      'telegram',
+    );
+
+    const row = await admin.query<{ contact_name: string | null }>(
+      'SELECT contact_name FROM public.conversations WHERE id = $1',
+      [first.conversationId],
+    );
+    // People rename themselves; the list should show what they call
+    // themselves now.
+    expect(row.rows[0]!.contact_name).toBe('Dana Cohen');
+  });
+
+  it('leaves the stored name alone when a message carries none', async () => {
+    const chatId = chat('nameless');
+    const first = await recordInboundMessage(
+      pool,
+      { updateId: '7201', chatId, text: 'hello', contactName: 'Dana Cohen' },
+      'telegram',
+    );
+    await recordInboundMessage(pool, { updateId: '7202', chatId, text: 'again' }, 'telegram');
+
+    const row = await admin.query<{ contact_name: string | null }>(
+      'SELECT contact_name FROM public.conversations WHERE id = $1',
+      [first.conversationId],
+    );
+    expect(row.rows[0]!.contact_name).toBe('Dana Cohen');
+  });
+});

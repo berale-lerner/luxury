@@ -30,6 +30,11 @@ export const telegramUpdateSchema = z.object({
         .object({
           id: z.number().int(),
           is_bot: z.boolean(),
+          // Self-chosen and changeable, so a label for a human reading a
+          // list — never an identity check.
+          first_name: z.string().max(200).optional(),
+          last_name: z.string().max(200).optional(),
+          username: z.string().max(200).optional(),
         })
         .optional(),
       date: z.number().int(),
@@ -39,6 +44,7 @@ export const telegramUpdateSchema = z.object({
 });
 
 export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>;
+type TelegramSender = NonNullable<NonNullable<TelegramUpdate['message']>['from']>;
 
 /**
  * Narrows a valid update to the one case handled today.
@@ -52,9 +58,20 @@ export function toInboundTextMessage(update: TelegramUpdate): InboundTextMessage
   if (!message) return null;
   if (message.from?.is_bot === true) return null;
 
+  const name = contactName(message.from);
+
   return {
     updateId: String(update.update_id),
     chatId: String(message.chat.id),
     text: message.text,
+    ...(name ? { contactName: name } : {}),
   };
+}
+
+/** First and last name if given, else the @username, else nothing. */
+function contactName(from: TelegramSender | undefined): string | undefined {
+  if (!from) return undefined;
+  const full = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();
+  if (full) return full;
+  return from.username ? `@${from.username}` : undefined;
 }

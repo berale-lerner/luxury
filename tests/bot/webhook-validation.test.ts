@@ -117,3 +117,34 @@ describe('update parsing', () => {
     expect(Object.keys(parsed).sort()).toEqual(['message', 'update_id']);
   });
 });
+
+describe('the sender name', () => {
+  const base = {
+    update_id: 77,
+    message: { message_id: 1, chat: { id: 5 }, date: 1, text: 'hi' },
+  };
+
+  it('joins first and last name', () => {
+    const parsed = telegramUpdateSchema.parse({
+      ...base,
+      message: { ...base.message, from: { id: 1, is_bot: false, first_name: 'Dana', last_name: 'Cohen' } },
+    });
+    expect(toInboundTextMessage(parsed)?.contactName).toBe('Dana Cohen');
+  });
+
+  it('falls back to the username when no name is given', () => {
+    const parsed = telegramUpdateSchema.parse({
+      ...base,
+      message: { ...base.message, from: { id: 1, is_bot: false, username: 'dana' } },
+    });
+    expect(toInboundTextMessage(parsed)?.contactName).toBe('@dana');
+  });
+
+  it('is absent when the platform says nothing', () => {
+    const parsed = telegramUpdateSchema.parse({
+      ...base,
+      message: { ...base.message, from: { id: 1, is_bot: false } },
+    });
+    expect(toInboundTextMessage(parsed)?.contactName).toBeUndefined();
+  });
+});

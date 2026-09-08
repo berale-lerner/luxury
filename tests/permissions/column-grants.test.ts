@@ -19,6 +19,7 @@ const SELECTABLE_COLUMNS: Record<string, string[]> = {
   unit_availability: ['unit_id', 'date', 'is_available'],
   guests: ['id', 'display_name', 'preferred_language'],
   bookings: ['id', 'reference', 'guest_id', 'unit_id', 'check_in', 'check_out', 'status'],
+  // contact_name: what the platform says the person is called.
   conversations: [
     'id',
     'guest_id',
@@ -27,6 +28,8 @@ const SELECTABLE_COLUMNS: Record<string, string[]> = {
     'status',
     'agent_muted',
     'last_message_at',
+    // What the platform says the contact is called (migration 0009).
+    'contact_name',
   ],
   // provider_update_id is readable so a redelivered update can be recognised
   // as one already stored (migration 0005).

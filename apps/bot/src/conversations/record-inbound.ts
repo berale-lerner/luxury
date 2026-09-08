@@ -14,6 +14,11 @@ export interface InboundTextMessage {
   readonly updateId: string;
   readonly chatId: string;
   readonly text: string;
+  /**
+   * What the platform says the person is called. Absent when the platform
+   * does not say, and never treated as an identity — it is self-chosen.
+   */
+  readonly contactName?: string;
 }
 
 export interface RecordedInbound {
@@ -50,7 +55,12 @@ export async function recordInboundMessage(
       inbound.chatId,
     ]);
 
-    const conversation = await findOrCreateConversation(client, channel, inbound.chatId);
+    const conversation = await findOrCreateConversation(
+      client,
+      channel,
+      inbound.chatId,
+      inbound.contactName,
+    );
 
     // From here the narrower scope applies: this conversation's rows only.
     await client.query('SELECT set_config($1, $2, true)', [
@@ -104,9 +114,14 @@ async function findOrCreateConversation(
   client: PoolClient,
   channel: ChannelName,
   chatId: string,
+  contactName: string | undefined,
 ): Promise<ConversationRow> {
-  const existing = await client.query<{ id: string; agent_muted: boolean }>(
-    `SELECT id, agent_muted
+  const existing = await client.query<{
+    id: string;
+    agent_muted: boolean;
+    contact_name: string | null;
+  }>(
+    `SELECT id, agent_muted, contact_name
        FROM public.conversations
       WHERE channel = $1 AND channel_chat_id = $2`,
     [channel, chatId],
@@ -114,6 +129,15 @@ async function findOrCreateConversation(
 
   const found = existing.rows[0];
   if (found) {
+    // People rename themselves. Following the change keeps the admin list
+    // showing what the guest currently calls themselves.
+    if (contactName && contactName !== found.contact_name) {
+      await client.query('SELECT set_config($1, $2, true)', ['app.conversation_id', found.id]);
+      await client.query('UPDATE public.conversations SET contact_name = $2 WHERE id = $1', [
+        found.id,
+        contactName,
+      ]);
+    }
     return { id: found.id, agentMuted: found.agent_muted };
   }
 
@@ -123,9 +147,9 @@ async function findOrCreateConversation(
   await client.query('SELECT set_config($1, $2, true)', ['app.conversation_id', id]);
 
   await client.query(
-    `INSERT INTO public.conversations (id, channel, channel_chat_id)
-     VALUES ($1, $2, $3)`,
-    [id, channel, chatId],
+    `INSERT INTO public.conversations (id, channel, channel_chat_id, contact_name)
+     VALUES ($1, $2, $3, $4)`,
+    [id, channel, chatId, contactName ?? null],
   );
 
   return { id, agentMuted: false };

@@ -33,10 +33,17 @@ export function Thread({
   const box = useRef<HTMLTextAreaElement>(null);
 
   // Jumps to the newest message before paint, so opening a thread never
-  // shows the top of a long history for a frame.
+  // shows the top of a long history for a frame. The second pass on the next
+  // frame covers content that settles after layout — a long message wrapping,
+  // or a webfont swapping in — which otherwise leaves the view a little short
+  // of the bottom.
   useLayoutEffect(() => {
     const element = scroller.current;
-    if (element) element.scrollTop = element.scrollHeight;
+    if (!element) return;
+    const toBottom = () => void (element.scrollTop = element.scrollHeight);
+    toBottom();
+    const frame = requestAnimationFrame(toBottom);
+    return () => cancelAnimationFrame(frame);
   }, [conversation.id, messages.length]);
 
   // Grows with the text instead of scrolling inside a two-line box.

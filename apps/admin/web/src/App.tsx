@@ -8,6 +8,9 @@ import type { ConversationMessage, ConversationSummary } from './types';
 /** How often the open thread and the list refresh while the tab is visible. */
 const POLL_MS = 8_000;
 
+/** Matches the breakpoint in styles.css where the two panes appear together. */
+const TWO_PANE = '(min-width: 861px)';
+
 type Access = 'checking' | 'ok' | 'signed-out' | 'not-allowed';
 
 export function App() {
@@ -50,6 +53,16 @@ export function App() {
     },
     [handle],
   );
+
+  // With both panes visible, an empty right-hand side is wasted space and an
+  // extra click. On one pane it would mean landing inside a conversation
+  // nobody asked for, with the list a back button away — so only on desktop,
+  // and only when nothing has been chosen yet.
+  useEffect(() => {
+    if (access !== 'ok' || selectedId || conversations.length === 0) return;
+    if (!window.matchMedia(TWO_PANE).matches) return;
+    setSelectedId(conversations[0]!.id);
+  }, [access, selectedId, conversations]);
 
   // Debounced so typing in the search box does not fire a query per keystroke.
   useEffect(() => {
