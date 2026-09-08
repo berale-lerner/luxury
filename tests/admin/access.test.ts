@@ -5,6 +5,7 @@
  * that matter are the negative ones: that a stranger, and a signed-in
  * stranger, get nothing at all.
  */
+import { readFile } from 'node:fs/promises';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import { buildApp } from '../../apps/admin/server/src/app.js';
@@ -162,5 +163,20 @@ describe('the tables Better Auth stores sign-in state in', () => {
     } finally {
       await bot.end();
     }
+  });
+});
+
+describe('the sign-in screen', () => {
+  it('starts the flow with a POST, which is what the library answers', async () => {
+    const source = await readFile(
+      new URL('../../apps/admin/web/src/SignIn.tsx', import.meta.url).pathname,
+      'utf8',
+    );
+    // Better Auth returns the provider URL in a JSON body rather than
+    // redirecting, so a plain <a href> reaches an endpoint that does not
+    // answer GET. The first deployment shipped exactly that and 404ed.
+    expect(source).toContain("method: 'POST'");
+    expect(source).not.toContain('href="/api/auth/sign-in');
+    expect(source).not.toContain('href="/api/auth/sign-out"');
   });
 });
