@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 // @ts-expect-error — plain .mjs, shared with the deploy entry point.
-import { publishIfChanged, syncRolePasswords } from '../../scripts/deploy.mjs';
+import { publishIfChanged, seedAllowlist, syncRolePasswords } from '../../scripts/deploy.mjs';
 import { OWNER_URL } from '../helpers/config.js';
 
 let owner: pg.Client;
@@ -115,5 +115,43 @@ describe('syncing role passwords', () => {
     const client = new pg.Client({ connectionString: url.toString() });
     await client.connect();
     await client.end();
+  });
+});
+
+describe('seeding the allowlist', () => {
+  const EMAILS = 'first@example.com, Second@Example.com';
+
+  afterAll(async () => {
+    await owner.query(
+      `DELETE FROM public.admin_allowlist WHERE email IN ('first@example.com', 'second@example.com')`,
+    );
+  });
+
+  it('adds the initial managers, normalised', async () => {
+    const result = await seedAllowlist(owner, EMAILS);
+    // Addresses differing only in case are the same mailbox; storing them
+    // lowercased keeps one row per person.
+    expect(result.added.sort()).toEqual(['first@example.com', 'second@example.com']);
+  });
+
+  it('is a no-op on the next deploy', async () => {
+    expect((await seedAllowlist(owner, EMAILS)).added).toEqual([]);
+  });
+
+  it('does not restore an address a manager removed in the interface', async () => {
+    await owner.query(`DELETE FROM public.admin_allowlist WHERE email = 'first@example.com'`);
+    // Additive means additive on the deploy that adds it, not on every one
+    // after. Someone taken off the list stays off.
+    const result = await seedAllowlist(owner, 'second@example.com');
+    expect(result.added).toEqual([]);
+
+    const rows = await owner.query(
+      `SELECT email FROM public.admin_allowlist WHERE email = 'first@example.com'`,
+    );
+    expect(rows.rowCount).toBe(0);
+  });
+
+  it('does nothing when nothing is configured', async () => {
+    expect((await seedAllowlist(owner, '')).added).toEqual([]);
   });
 });

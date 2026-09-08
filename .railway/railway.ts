@@ -48,6 +48,10 @@ export default defineRailway(() => {
       // applies them, and the consuming services read the same values.
       BOT_DB_PASSWORD: preserve(),
       ADMIN_DB_PASSWORD: preserve(),
+      // The first manager cannot add themselves: the allowlist is managed
+      // from a screen nobody can reach until they are on it. Comma-separated,
+      // additive only, and removals made in the UI are not undone.
+      ADMIN_ALLOWLIST: preserve(),
     },
   });
 

@@ -8,7 +8,8 @@
  *
  *   1. migrate                — roles, GRANTs, RLS
  *   2. sync role passwords    — migrations create roles without one
- *   3. publish the prompt     — only if it changed
+ *   3. seed the allowlist     — the first manager has no other way in
+ *   4. publish the prompt     — only if it changed
  *
  * Step 3 is a stopgap. The design has the owner publishing from the admin
  * screen with draft-then-publish (DESIGN.md); until that exists, an
@@ -50,6 +51,46 @@ export async function syncRolePasswords(client, passwords) {
     await client.query(`ALTER ROLE ${role} PASSWORD $1`.replace('$1', quote(password)));
     console.log(`password set for ${role}`);
   }
+}
+
+/**
+ * Puts the initial managers on the allowlist.
+ *
+ * A bootstrap step, and it exists because of a genuine circularity: the
+ * allowlist is managed from a screen inside apps/admin, and nobody can reach
+ * that screen until they are on the allowlist. Something outside the
+ * interface has to place the first entry, and it cannot be a person with a
+ * psql prompt — production credentials do not leave Railway (CLAUDE.md).
+ *
+ * Additive only. It never removes an address, so a manager taken off the
+ * list in the UI does not come back on the next deploy.
+ */
+export async function seedAllowlist(client, emails) {
+  const wanted = emails
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (wanted.length === 0) return { added: [] };
+
+  const added = [];
+  for (const email of wanted) {
+    const result = await client.query(
+      `INSERT INTO public.admin_allowlist (email, added_by)
+       VALUES ($1, 'deploy')
+       ON CONFLICT (email) DO NOTHING
+       RETURNING email`,
+      [email],
+    );
+    if (result.rowCount === 1) added.push(email);
+  }
+
+  console.log(
+    added.length > 0
+      ? `allowlist: added ${added.join(', ')}`
+      : `allowlist: ${wanted.length} address(es) already present`,
+  );
+  return { added };
 }
 
 /** Postgres literal quoting, so a password containing a quote still works. */
@@ -130,6 +171,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       bot_user: process.env.BOT_DB_PASSWORD,
       admin_user: process.env.ADMIN_DB_PASSWORD,
     });
+    await seedAllowlist(owner, process.env.ADMIN_ALLOWLIST ?? '');
     await publishIfChanged(owner, process.env.AGENT_KEY ?? 'guest');
   } finally {
     await owner.end();
