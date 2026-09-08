@@ -58,7 +58,10 @@ const app = buildApp({
       ? [createTelegramSender({ credentials: { telegramBotToken: config.TELEGRAM_BOT_TOKEN } })]
       : [],
   }),
-  webRoot: join(dirname(fileURLToPath(import.meta.url)), '..', 'web'),
+  // dist/web, beside this file — not apps/admin/web, which is the
+  // source Vite builds *from* and whose index.html points at a .tsx
+  // entry no browser can load.
+  webRoot: join(dirname(fileURLToPath(import.meta.url)), 'web'),
 });
 
 app.log.warn(

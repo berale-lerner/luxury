@@ -90,3 +90,22 @@ describe('the development server', () => {
     expect(iac).not.toContain('dev-server');
   });
 });
+
+describe('the static root', () => {
+  it('points at the built SPA, not the source Vite builds from', async () => {
+    // apps/admin/web holds an index.html whose entry is a .tsx file. Serving
+    // that directory returns a page the browser cannot run: the module is
+    // sent as application/octet-stream and nothing renders. The built output
+    // is dist/web, beside the compiled server.
+    for (const entry of ['index.ts', 'dev-server.ts']) {
+      const source = await read(`${SRC}/${entry}`);
+      expect(source).toContain("import.meta.url)), 'web')");
+      expect(source).not.toContain("'..', 'web'");
+    }
+  });
+
+  it('is where vite is configured to build to', async () => {
+    const config = await read('apps/admin/vite.config.ts');
+    expect(config).toContain("outDir: '../dist/web'");
+  });
+});
