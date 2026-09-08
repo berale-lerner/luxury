@@ -10,6 +10,7 @@ import pg from 'pg';
 import { buildApp } from '../../apps/admin/server/src/app.js';
 import type { SessionReader } from '../../apps/admin/server/src/auth/session.js';
 import { urlForRole } from '../helpers/config.js';
+import { errorFrom, INSUFFICIENT_PRIVILEGE } from '../helpers/db.js';
 
 const ALLOWED = 'manager@example.com';
 const STRANGER = 'someone.else@example.com';
@@ -142,6 +143,24 @@ describe('the health endpoint', () => {
       expect(response.statusCode).toBe(200);
     } finally {
       await app.close();
+    }
+  });
+});
+
+describe('the tables Better Auth stores sign-in state in', () => {
+  it('are out of reach for the bot', async () => {
+    const bot = new pg.Client({ connectionString: urlForRole('bot_user') });
+    await bot.connect();
+    try {
+      for (const table of ['"user"', 'session', 'account', 'verification']) {
+        const error = await errorFrom(() => bot.query(`SELECT * FROM public.${table}`));
+        // public.account holds OAuth access and refresh tokens, which is the
+        // strongest reason yet for the internet-facing service not to reach
+        // any of these.
+        expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+      }
+    } finally {
+      await bot.end();
     }
   });
 });
