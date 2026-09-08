@@ -19,3 +19,14 @@ export interface ConversationMessage {
   body: string;
   createdAt: string;
 }
+
+/**
+ * Where this client has read up to in a thread.
+ *
+ * Issued by the server and echoed back unchanged — never built from the
+ * browser's own clock, which may not agree with the database's.
+ */
+export interface MessageCursor {
+  at: string;
+  id: string;
+}

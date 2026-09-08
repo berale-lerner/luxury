@@ -6,12 +6,23 @@ import type { MessagingClient } from '@luxury/messaging';
 import {
   getConversation,
   listConversations,
+  messagesSince,
   recordManagerMessage,
   setAgentMuted,
 } from './queries.js';
 
 const idSchema = z.string().uuid();
 const sendSchema = z.object({ body: z.string().min(1).max(4096) });
+/**
+ * The cursor comes back exactly as it was issued. Validated anyway — it
+ * arrives over the wire and is interpolated into a query as a timestamp and
+ * a uuid, so its shape is not something to assume (STANDARDS.md).
+ */
+const cursorSchema = z.object({
+  at: z.string().datetime({ offset: true }),
+  id: z.string().uuid(),
+});
+
 const listSchema = z.object({
   search: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -52,6 +63,28 @@ export function registerConversationRoutes(
       return reply.code(404).send({ error: 'not_found' });
     }
     return found;
+  });
+
+  /**
+   * What polling asks for: messages added since the client's cursor.
+   *
+   * Separate from the full-thread route rather than a parameter on it,
+   * because they answer different questions — "give me this conversation"
+   * and "give me what changed" — and only one of them grows with the length
+   * of the thread.
+   */
+  app.get('/api/conversations/:id/messages', async (request, reply) => {
+    const id = idSchema.safeParse((request.params as { id: string }).id);
+    if (!id.success) {
+      return reply.code(400).send({ error: 'bad_id' });
+    }
+
+    const cursor = cursorSchema.safeParse(request.query);
+    if (!cursor.success) {
+      return reply.code(400).send({ error: 'bad_cursor' });
+    }
+
+    return messagesSince(deps.pool, id.data, cursor.data);
   });
 
   app.post('/api/conversations/:id/messages', async (request, reply) => {

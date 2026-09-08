@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, NotAllowedError, NotSignedInError } from './api';
 import { ConversationList } from './ConversationList';
 import { SignIn, NotAllowed } from './SignIn';
 import { Thread } from './Thread';
-import type { ConversationMessage, ConversationSummary } from './types';
+import type { ConversationMessage, ConversationSummary, MessageCursor } from './types';
 
 /** How often the open thread and the list refresh while the tab is visible. */
 const POLL_MS = 8_000;
@@ -23,6 +23,9 @@ export function App() {
     conversation: ConversationSummary;
     messages: ConversationMessage[];
   } | null>(null);
+  // Held in a ref rather than state: it changes on every poll and nothing
+  // renders from it, so it must not cause one.
+  const cursor = useRef<MessageCursor | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,10 +75,51 @@ export function App() {
     return () => clearTimeout(timer);
   }, [access, search, loadList]);
 
+  /** The full thread, on open. Establishes the cursor for everything after. */
   const loadThread = useCallback(
     async (id: string) => {
       try {
-        setThread(await api.conversation(id));
+        const loaded = await api.conversation(id);
+        cursor.current = loaded.cursor;
+        setThread({ conversation: loaded.conversation, messages: loaded.messages });
+      } catch (cause) {
+        handle(cause);
+      }
+    },
+    [handle],
+  );
+
+  /**
+   * One poll of the open thread.
+   *
+   * Asks only for what is new, and merges by id: the server deliberately
+   * re-reads a short window before the cursor, because rows do not become
+   * visible in timestamp order, so the same message can legitimately arrive
+   * twice.
+   */
+  const pollThread = useCallback(
+    async (id: string) => {
+      const from = cursor.current;
+      if (!from) return;
+
+      try {
+        const { messages, cursor: next } = await api.messagesSince(id, from);
+        cursor.current = next;
+        if (messages.length === 0) return;
+
+        setThread((current) => {
+          if (!current) return current;
+          const byId = new Map(current.messages.map((m) => [m.id, m]));
+          for (const message of messages) byId.set(message.id, message);
+          return {
+            ...current,
+            messages: [...byId.values()].sort((a, b) =>
+              a.createdAt === b.createdAt
+                ? a.id.localeCompare(b.id)
+                : a.createdAt.localeCompare(b.createdAt),
+            ),
+          };
+        });
       } catch (cause) {
         handle(cause);
       }
@@ -86,8 +130,10 @@ export function App() {
   useEffect(() => {
     if (!selectedId) {
       setThread(null);
+      cursor.current = null;
       return;
     }
+    cursor.current = null;
     void loadThread(selectedId);
   }, [selectedId, loadThread]);
 
@@ -98,10 +144,11 @@ export function App() {
     const timer = setInterval(() => {
       if (document.hidden) return;
       void loadList(search);
-      if (selectedId) void loadThread(selectedId);
+      // Incremental: the full thread is fetched once, on open.
+      if (selectedId) void pollThread(selectedId);
     }, POLL_MS);
     return () => clearInterval(timer);
-  }, [access, search, selectedId, loadList, loadThread]);
+  }, [access, search, selectedId, loadList, pollThread]);
 
   const send = async (body: string) => {
     if (!selectedId) return;
@@ -109,6 +156,9 @@ export function App() {
     setError(null);
     try {
       const { message } = await api.send(selectedId, body);
+      // Advanced here too, so the next poll does not hand this message back
+      // as though it were new.
+      cursor.current = { at: message.createdAt, id: message.id };
       setThread((current) =>
         current
           ? {

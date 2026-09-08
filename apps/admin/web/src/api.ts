@@ -1,4 +1,4 @@
-import type { ConversationMessage, ConversationSummary } from './types';
+import type { ConversationMessage, ConversationSummary, MessageCursor } from './types';
 
 /**
  * The API client.
@@ -37,8 +37,16 @@ export const api = {
     ),
 
   conversation: (id: string) =>
-    request<{ conversation: ConversationSummary; messages: ConversationMessage[] }>(
-      `/api/conversations/${id}`,
+    request<{
+      conversation: ConversationSummary;
+      messages: ConversationMessage[];
+      cursor: MessageCursor | null;
+    }>(`/api/conversations/${id}`),
+
+  /** What polling asks for. Usually returns an empty list. */
+  messagesSince: (id: string, cursor: MessageCursor) =>
+    request<{ messages: ConversationMessage[]; cursor: MessageCursor }>(
+      `/api/conversations/${id}/messages?at=${encodeURIComponent(cursor.at)}&id=${cursor.id}`,
     ),
 
   send: (id: string, body: string) =>
