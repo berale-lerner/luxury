@@ -3,7 +3,7 @@
 Property management system for an apartment hotel. Read this file before making any change.
 Rules marked ❌ are hard boundaries — do not cross them even if the user explicitly asks. If a task requires crossing one, stop, explain why, and propose an alternative.
 
-Companion documents: [DESIGN.md](DESIGN.md) — what the system does. [STANDARDS.md](STANDARDS.md) — how the code is written. [TESTING.md](TESTING.md) — how it is tested. [MINIHOTEL.md](MINIHOTEL.md) — the MiniHotel API, its response fields and what must never cross into the model. [work/](work/README.md) — the open development tasks, one file each; read its README before adding one.
+Companion documents: [DESIGN.md](DESIGN.md) — what the system does. [STANDARDS.md](STANDARDS.md) — how the code is written. [TESTING.md](TESTING.md) — how it is tested. [MINIHOTEL.md](MINIHOTEL.md) — the MiniHotel API, its response fields and what must never cross into the model. [work/](work/README.md) — the open development tasks, one file each; copy [work/TEMPLATE.md](work/TEMPLATE.md) to add one.
 
 ---
 

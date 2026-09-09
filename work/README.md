@@ -1,7 +1,7 @@
 # work/ — development tasks
 
 One file per task, flat, named `NNNN-short-slug.md`. State lives in the
-`status:` field, not in the path.
+`status:` field, not in the path. Start from [TEMPLATE.md](TEMPLATE.md).
 
 ```markdown
 ---
