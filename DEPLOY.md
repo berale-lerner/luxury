@@ -25,6 +25,17 @@
 | `bot` | `bot_user` | **כן** — webhook של טלגרם |
 | `admin` | `admin_user` | כן, מאחורי auth + allowlist |
 
+### כתובות production
+
+| שירות | כתובת |
+|---|---|
+| `admin` | https://admin-production-3e57.up.railway.app |
+| `bot` | https://bot-production-9347.up.railway.app |
+
+הכתובות נוצרו על ידי Railway ומופיעות גם כ-`PUBLIC_URL` על שירות ה-`admin` — הכתובת שם היא גם מה שמרכיב את ה-OAuth callback (`<PUBLIC_URL>/api/auth/callback/google`) ואת תחום העוגייה, אז שינוי שלה דורש עדכון מקביל אצל Google.
+
+הן כתובות ולא סודות, ולכן מקומן כאן: כתובת שקיימת רק בקונסולה היא כתובת שמחפשים מחדש בכל פעם.
+
 ### למה `migrator` הוא שירות נפרד
 
 המיגרציות רצות כתפקיד בעלים — התפקיד היחיד שרשאי ליצור roles, GRANTs ו-RLS. אילו `apps/admin` היה מריץ אותן ב-pre-deploy, השירות שממילא מגיע לכל ה-schemas היה מחזיק גם את פרטי הבעלים.
