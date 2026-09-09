@@ -39,8 +39,15 @@ export async function loadPublishedPrompt(
  *
  * The TTL is short and deliberately dumb: publishing happens in the admin
  * service, in a different process, so there is nothing here to invalidate it.
- * A manager who publishes waits at most this long to see the change, which is
- * a fair trade against a database round trip per message.
+ * A manager who publishes waits at most this long to see the change.
+ *
+ * Ten seconds rather than a minute, because the wait is what the manager
+ * feels and the saving is not what costs anything. The read is a single row
+ * through prompt_versions_latest_idx, against a handler that already makes
+ * several round trips per message — going from one refresh a minute to six
+ * is not a number that appears anywhere. Under more than one replica this is
+ * also the window in which two guests can be served different versions, and
+ * that is a better reason to keep it small than the first one.
  */
 export class PromptCache {
   #cached: { value: PublishedPrompt | null; fetchedAt: number } | undefined;
@@ -48,7 +55,7 @@ export class PromptCache {
   constructor(
     private readonly pool: pg.Pool,
     private readonly agentKey: string,
-    private readonly ttlMs = 60_000,
+    private readonly ttlMs = 10_000,
     private readonly now: () => number = Date.now,
   ) {}
 

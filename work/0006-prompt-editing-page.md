@@ -32,10 +32,12 @@ handle it:
 1. **The assembly happens at publish, not at call time.** `prompt_versions.body`
    holds the finished text. A guest message reads one row through
    `prompt_versions_latest_idx` — no join across documents, no concatenation
-2. **`PromptCache`, 60s TTL** ([prompt.ts](../apps/bot/src/agent/prompt.ts)).
-   One read per minute per process, not one per message. The TTL is
+2. **`PromptCache`, 10s TTL** ([prompt.ts](../apps/bot/src/agent/prompt.ts)).
+   Six reads a minute per process, not one per message. The TTL is
    deliberately dumb: publishing happens in the admin process, so there is
-   nothing in the bot to invalidate it, and a manager waits at most a minute
+   nothing in the bot to invalidate it, and a manager waits at most ten
+   seconds. If that ever needs to be immediate, the answer is Postgres
+   `LISTEN`/`NOTIFY` rather than a shorter number
 3. **Provider-side prompt caching.** The Anthropic adapter marks the system
    prompt `cache_control: ephemeral`, so the stable prefix is not reprocessed
    or recharged on every turn
