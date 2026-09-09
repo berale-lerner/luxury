@@ -3,6 +3,7 @@ import type pg from 'pg';
 import { z } from 'zod';
 import type { ConversationId } from '@luxury/shared';
 import type { MessagingClient } from '@luxury/messaging';
+import { requires } from '../auth/roles.js';
 import {
   getConversation,
   listConversations,
@@ -44,7 +45,7 @@ export function registerConversationRoutes(
   app: FastifyInstance,
   deps: ConversationRoutesDeps,
 ): void {
-  app.get('/api/conversations', async (request, reply) => {
+  app.get('/api/conversations', { config: requires('viewer') }, async (request, reply) => {
     const query = listSchema.safeParse(request.query);
     if (!query.success) {
       return reply.code(400).send({ error: 'bad_query' });
@@ -52,7 +53,7 @@ export function registerConversationRoutes(
     return { conversations: await listConversations(deps.pool, query.data) };
   });
 
-  app.get('/api/conversations/:id', async (request, reply) => {
+  app.get('/api/conversations/:id', { config: requires('viewer') }, async (request, reply) => {
     const id = idSchema.safeParse((request.params as { id: string }).id);
     if (!id.success) {
       return reply.code(400).send({ error: 'bad_id' });
@@ -73,7 +74,7 @@ export function registerConversationRoutes(
    * and "give me what changed" — and only one of them grows with the length
    * of the thread.
    */
-  app.get('/api/conversations/:id/messages', async (request, reply) => {
+  app.get('/api/conversations/:id/messages', { config: requires('viewer') }, async (request, reply) => {
     const id = idSchema.safeParse((request.params as { id: string }).id);
     if (!id.success) {
       return reply.code(400).send({ error: 'bad_id' });
@@ -87,7 +88,7 @@ export function registerConversationRoutes(
     return messagesSince(deps.pool, id.data, cursor.data);
   });
 
-  app.post('/api/conversations/:id/messages', async (request, reply) => {
+  app.post('/api/conversations/:id/messages', { config: requires('manager') }, async (request, reply) => {
     const id = idSchema.safeParse((request.params as { id: string }).id);
     if (!id.success) {
       return reply.code(400).send({ error: 'bad_id' });
@@ -123,7 +124,7 @@ export function registerConversationRoutes(
     return { message };
   });
 
-  app.post('/api/conversations/:id/agent', async (request, reply) => {
+  app.post('/api/conversations/:id/agent', { config: requires('manager') }, async (request, reply) => {
     const id = idSchema.safeParse((request.params as { id: string }).id);
     if (!id.success) {
       return reply.code(400).send({ error: 'bad_id' });
@@ -147,5 +148,5 @@ export function registerConversationRoutes(
     return { muted: parsed.data.muted };
   });
 
-  app.get('/api/me', async (request) => ({ admin: request.admin }));
+  app.get('/api/me', { config: requires('viewer') }, async (request) => ({ admin: request.admin }));
 }

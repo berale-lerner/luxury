@@ -136,6 +136,7 @@ describe('the schema was built from the migrations', () => {
       '0007_agent_prompts.sql',
       '0008_auth_tables.sql',
       '0009_conversation_contact_name.sql',
+      '0010_admin_roles.sql',
     ]);
   });
 });

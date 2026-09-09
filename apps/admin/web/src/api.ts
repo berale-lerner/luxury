@@ -1,4 +1,11 @@
-import type { ConversationMessage, ConversationSummary, MessageCursor } from './types';
+import type {
+  AdminRole,
+  AdminUser,
+  ConversationMessage,
+  ConversationSummary,
+  Me,
+  MessageCursor,
+} from './types';
 
 /**
  * The API client.
@@ -11,6 +18,16 @@ export class NotSignedInError extends Error {}
 export class NotAllowedError extends Error {
   constructor(readonly email?: string) {
     super('not allowed');
+  }
+}
+
+/** A refusal the server explained, so the screen can say which one it was. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(code ?? `request failed with ${status}`);
   }
 }
 
@@ -44,7 +61,13 @@ function reportAuthFailure(failure: AuthFailure): void {
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+    // Only when there is a body. Declaring a JSON content type on a request
+    // that carries nothing makes Fastify's parser look for a body and reject
+    // the request as malformed — which is what a DELETE looked like.
+    headers: {
+      ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(init?.headers ?? {}),
+    },
   });
 
   if (response.status === 401) {
@@ -56,13 +79,40 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new NotAllowedError();
   }
   if (!response.ok) {
-    throw new Error(`${init?.method ?? 'GET'} ${url} failed with ${response.status}`);
+    // The server names why it refused; the caller decides what that means to
+    // the person reading the screen. Without the code every refusal reads as
+    // "something went wrong", including the ones that are simply an answer.
+    const code = await response
+      .clone()
+      .json()
+      .then((body: { error?: string }) => body.error)
+      .catch(() => undefined);
+    throw new ApiError(response.status, code);
   }
+
+  // 204: a delete has nothing to say.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
 export const api = {
-  me: () => request<{ admin: { email: string; name: string | null } }>('/api/me'),
+  me: () => request<{ admin: Me }>('/api/me'),
+
+  users: () => request<{ users: AdminUser[] }>('/api/users'),
+
+  addUser: (email: string, role: AdminRole) =>
+    request<{ user: AdminUser }>('/api/users', {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+
+  changeRole: (id: string, role: AdminRole) =>
+    request<{ user: AdminUser }>(`/api/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+
+  removeUser: (id: string) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
 
   conversations: (search: string) =>
     request<{ conversations: ConversationSummary[] }>(

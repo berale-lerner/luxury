@@ -1,11 +1,14 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
-import { isAllowed } from './allowlist.js';
+import { findAllowedAdmin } from './allowlist.js';
+import type { AdminRole } from './roles.js';
 
 /** Who the request is, once both checks have passed. */
 export interface AdminIdentity {
+  readonly id: string;
   readonly email: string;
   readonly name: string | null;
+  readonly role: AdminRole;
 }
 
 declare module 'fastify' {
@@ -30,7 +33,8 @@ export interface GuardDeps {
  * Two separate questions, and both have to be answered on every request:
  * who is this (the session), and are they allowed (the allowlist). Checking
  * the allowlist only at sign-in would leave a removed manager with a valid
- * session and full access until it expired.
+ * session and full access until it expired — and the same applies to a role,
+ * which is read here rather than carried in the session for that reason.
  *
  * Registered as a hook on the whole API scope rather than per handler,
  * because a handler someone forgets to decorate should fail closed
@@ -45,7 +49,9 @@ export function createAdminGuard(deps: GuardDeps) {
       return;
     }
 
-    if (!(await isAllowed(deps.pool, identity.email))) {
+    const allowed = await findAllowedAdmin(deps.pool, identity.email);
+
+    if (!allowed) {
       // Logged: an authenticated stranger reaching the admin URL is worth
       // seeing. The email is the subject of the decision, not guest data.
       request.log.warn(
@@ -56,6 +62,13 @@ export function createAdminGuard(deps: GuardDeps) {
       return;
     }
 
-    request.admin = { email: identity.email, name: identity.name };
+    // The email is the one the provider verified, not the one stored: they
+    // are the same mailbox, and the session is the fresher fact.
+    request.admin = {
+      id: allowed.id,
+      email: identity.email,
+      name: identity.name,
+      role: allowed.role,
+    };
   };
 }

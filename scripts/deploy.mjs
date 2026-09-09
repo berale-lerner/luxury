@@ -75,9 +75,15 @@ export async function seedAllowlist(client, emails) {
 
   const added = [];
   for (const email of wanted) {
+    // owner, not the column default: this variable is the bootstrap list,
+    // and its whole job is to produce someone who can add everyone else. A
+    // viewer here would leave a database nobody can administer.
+    //
+    // ON CONFLICT DO NOTHING, so an address later demoted on purpose is not
+    // promoted back by the next deploy.
     const result = await client.query(
-      `INSERT INTO public.admin_allowlist (email, added_by)
-       VALUES ($1, 'deploy')
+      `INSERT INTO public.admin_allowlist (email, role, added_by, role_changed_by, role_changed_at)
+       VALUES ($1, 'owner', 'deploy', 'deploy', now())
        ON CONFLICT (email) DO NOTHING
        RETURNING email`,
       [email],

@@ -30,3 +30,27 @@ export interface MessageCursor {
   at: string;
   id: string;
 }
+
+/**
+ * What someone on the allowlist may do. Ordered: each role can do everything
+ * the one before it can.
+ */
+export type AdminRole = 'viewer' | 'manager' | 'owner';
+
+/** The signed-in person, as the server describes them. */
+export interface Me {
+  id: string;
+  email: string;
+  name: string | null;
+  role: AdminRole;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: AdminRole;
+  addedBy: string | null;
+  createdAt: string;
+  roleChangedBy: string | null;
+  roleChangedAt: string | null;
+}

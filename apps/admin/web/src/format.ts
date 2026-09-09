@@ -34,6 +34,11 @@ export function listStamp(iso: string | null): string {
   return full.format(date);
 }
 
+/** A plain date, for a row that records when something was decided. */
+export function shortDate(iso: string): string {
+  return full.format(new Date(iso));
+}
+
 export function sameDay(a: string, b: string): boolean {
   const x = new Date(a);
   const y = new Date(b);

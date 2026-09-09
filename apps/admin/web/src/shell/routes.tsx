@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react';
 import { ConversationsPage } from '../pages/conversations/ConversationsPage';
+import { UsersPage } from '../pages/users/UsersPage';
+import type { AdminRole, Me } from '../types';
+
+const RANK: Record<AdminRole, number> = { viewer: 0, manager: 1, owner: 2 };
 
 /**
  * Every page in the admin interface, in the order they appear in the
@@ -27,8 +31,27 @@ export interface Route {
    * hides the tab bar: the bar would otherwise sit under the composer.
    */
   readonly navOnNarrow?: boolean;
-  render(params: Readonly<Record<string, string>>): ReactNode;
+  /**
+   * The role below which this page is not offered. A courtesy, not the
+   * boundary: the server refuses the requests behind it either way, and a
+   * page that relied on this to keep data away from a viewer would be
+   * enforcing authorization in the UI (CLAUDE.md, "Admin access").
+   */
+  readonly minRole?: AdminRole;
+  render(params: Readonly<Record<string, string>>, me: Me): ReactNode;
 }
+
+const UsersIcon = (
+  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M16 20v-1.6a4 4 0 0 0-4-4H6.5a4 4 0 0 0-4 4V20M9.25 10.9a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4ZM21.5 20v-1.6a4 4 0 0 0-3-3.87M16.5 3.63a4 4 0 0 1 0 7.15"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 const ConversationsIcon = (
   <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -59,7 +82,20 @@ export const routes: readonly Route[] = [
     navOnNarrow: false,
     render: (params) => <ConversationsPage selectedId={params.id ?? null} />,
   },
+  {
+    path: '/users',
+    section: 'users',
+    title: 'משתמשים',
+    label: 'משתמשים',
+    icon: UsersIcon,
+    minRole: 'owner',
+    render: (_params, me) => <UsersPage me={me} />,
+  },
 ];
+
+export function permits(route: Route, role: AdminRole): boolean {
+  return route.minRole === undefined || RANK[role] >= RANK[route.minRole];
+}
 
 /** Where an unknown or empty path lands. */
 export const HOME = '/conversations';
@@ -67,7 +103,7 @@ export const HOME = '/conversations';
 /** A route that appears in the navigation, and therefore has a label. */
 export type NavRoute = Route & { readonly label: string };
 
-/** The entries the navigation draws. */
-export const navRoutes: readonly NavRoute[] = routes.filter(
-  (route): route is NavRoute => route.label !== undefined,
-);
+/** The entries the navigation draws for someone with this role. */
+export function navRoutesFor(role: AdminRole): readonly NavRoute[] {
+  return routes.filter((route): route is NavRoute => route.label !== undefined && permits(route, role));
+}

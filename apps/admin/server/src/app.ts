@@ -3,7 +3,9 @@ import fastifyStatic from '@fastify/static';
 import type pg from 'pg';
 import type { MessagingClient } from '@luxury/messaging';
 import { createAdminGuard, type SessionReader } from './auth/session.js';
+import { assertRouteDeclaresRole, createRoleGate } from './auth/roles.js';
 import { registerConversationRoutes } from './conversations/routes.js';
+import { registerUserRoutes } from './users/routes.js';
 
 export interface BuildAppOptions {
   readonly pool: pg.Pool;
@@ -24,8 +26,18 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   // than a check inside each handler. A route added later is guarded by
   // where it is registered, which is harder to forget than a decorator.
   app.register(async (guarded) => {
+    // Order is the design: who this is, then whether that is enough for the
+    // route being asked for.
     guarded.addHook('preHandler', createAdminGuard({ pool: options.pool, session: options.session }));
+    guarded.addHook('preHandler', createRoleGate());
+
+    // The gate already fails closed for a route that declares nothing. This
+    // moves the moment the omission is noticed from a manager's 403 in
+    // production to a failure to start, here and in CI.
+    guarded.addHook('onRoute', assertRouteDeclaresRole);
+
     registerConversationRoutes(guarded, { pool: options.pool, messaging: options.messaging });
+    registerUserRoutes(guarded, { pool: options.pool });
   });
 
   if (options.webRoot) {

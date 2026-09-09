@@ -38,7 +38,11 @@ beforeAll(async () => {
   pool = new pg.Pool({ connectionString: urlForRole('admin_user') });
   db = new pg.Client({ connectionString: urlForRole('admin_user') });
   await db.connect();
-  await db.query(`INSERT INTO public.admin_allowlist (email) VALUES ($1)`, [ALLOWED]);
+  // manager, explicitly: sending a message and muting the agent both
+  // reach the guest, so both sit above a viewer (migration 0010).
+  await db.query(`INSERT INTO public.admin_allowlist (email, role) VALUES ($1, 'manager')`, [
+    ALLOWED,
+  ]);
 
   const conversation = await db.query<{ id: string }>(
     `INSERT INTO public.conversations (channel, channel_chat_id)

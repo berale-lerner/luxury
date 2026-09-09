@@ -1,10 +1,11 @@
 import { Link } from './router';
-import { navRoutes } from './routes';
+import { navRoutesFor } from './routes';
+import type { Me } from '../types';
 
 interface Props {
   /** The section of the route currently open. */
   readonly current: string;
-  readonly admin: { email: string; name: string | null } | null;
+  readonly admin: Me;
 }
 
 /**
@@ -22,7 +23,9 @@ export function Nav({ current, admin }: Props) {
   return (
     <nav className="nav" aria-label="ניווט ראשי">
       <div className="nav-items">
-        {navRoutes.map((route) => (
+        {/* Entries the role cannot use are not offered. The server refuses
+            them anyway — this only avoids inviting a click that will fail. */}
+        {navRoutesFor(admin.role).map((route) => (
           <Link
             key={route.path}
             to={route.path}
@@ -37,8 +40,7 @@ export function Nav({ current, admin }: Props) {
         ))}
       </div>
 
-      {admin && (
-        <div className="nav-account">
+      <div className="nav-account">
           {/* Signing out existed only on the "not allowed" screen, which is
               the one place a signed-in manager never sees. */}
           <button
@@ -57,9 +59,8 @@ export function Nav({ current, admin }: Props) {
               {(admin.name ?? admin.email).trim().charAt(0).toUpperCase()}
             </span>
             <span className="nav-label">יציאה</span>
-          </button>
-        </div>
-      )}
+        </button>
+      </div>
     </nav>
   );
 }

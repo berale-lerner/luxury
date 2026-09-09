@@ -3,14 +3,10 @@ import { api, onAuthFailure } from './api';
 import { Nav } from './shell/Nav';
 import { SignIn, NotAllowed } from './shell/SignIn';
 import { matchRoute, navigate, usePath } from './shell/router';
-import { HOME, routes } from './shell/routes';
+import { HOME, permits, routes } from './shell/routes';
+import type { Me } from './types';
 
 type Access = 'checking' | 'ok' | 'signed-out' | 'not-allowed';
-
-interface Admin {
-  email: string;
-  name: string | null;
-}
 
 /**
  * The application shell.
@@ -25,7 +21,7 @@ interface Admin {
  */
 export function App() {
   const [access, setAccess] = useState<Access>('checking');
-  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [admin, setAdmin] = useState<Me | null>(null);
   const path = usePath();
 
   // Any request, on any page, that comes back 401 or 403 lands here — the
@@ -51,11 +47,27 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  if (access === 'checking') return <div className="empty">טוען…</div>;
+  if (access === 'checking' || !admin) return <div className="empty">טוען…</div>;
   if (access === 'signed-out') return <SignIn />;
   if (access === 'not-allowed') return <NotAllowed />;
 
   const match = matchRoute(routes, path);
+
+  // A page the role may not use. Rendered as a refusal rather than hidden
+  // behind a redirect, so a bookmarked link says why it stopped working —
+  // and the API behind the page refuses it regardless of this screen.
+  if (match && !permits(match.route, admin.role)) {
+    return (
+      <div className="empty">
+        <div>
+          <div className="big">אין הרשאה לדף הזה</div>
+          <button type="button" className="link-btn" onClick={() => navigate(HOME)}>
+            חזרה לשיחות
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!match) {
     return (
@@ -77,7 +89,7 @@ export function App() {
   return (
     <div className="app" data-nav-on-narrow={match.route.navOnNarrow !== false}>
       <Nav current={match.route.section} admin={admin} />
-      <main className="app-main">{match.route.render(match.params)}</main>
+      <main className="app-main">{match.route.render(match.params, admin)}</main>
     </div>
   );
 }

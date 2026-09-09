@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 opened: 2026-09-09
 ---
 
@@ -29,8 +29,8 @@ to a guest.
 
 Muting the agent sits with `manager` rather than `viewer` deliberately: it
 changes what the guest experiences, which is the line the roles are drawn on.
-Worth a second opinion before it is built — it is the one row above that could
-reasonably go either way.
+It remains the one row that could reasonably go either way; moving it is a
+one-word change in `conversations/routes.ts` and a test that says so.
 
 ## Where it is enforced
 
@@ -87,8 +87,36 @@ the answer to "who gave them access" needs to survive the next change.
 
 ## Depends on
 
-[0004](0004-admin-app-shell.md). This is the second admin page, and there is
-currently nowhere to put a second page.
+[0004](0004-admin-app-shell.md) — done, and this became the second page under
+it: one entry in `shell/routes.tsx`, no edit to the shell.
+
+## What it turned out to need beyond the plan
+
+**The route requirement is declared beside the route** — `{ config:
+requires('viewer') }` — and read by a second `preHandler` after the guard. A
+route that declares nothing gets `owner`, as specified. On top of that an
+`onRoute` hook refuses to start the server at all when an API route declares
+nothing: it does not change what an undeclared route permits, it changes when
+the omission is found, from a manager's 403 in production to a failed boot in
+CI.
+
+**`isAllowed` became `findAllowedAdmin` and returns the row.** One lookup
+answers both questions — may they be here, and what may they do — because two
+queries are two chances for the answers to disagree. A role the code does not
+recognise reads as `viewer`: an unknown permission is not a reason to guess
+upwards.
+
+**The deploy seed had to say `owner` explicitly.** `ADMIN_ALLOWLIST` is the
+bootstrap list, and its whole job is to produce someone who can add everyone
+else; taking the column default would have left a database nobody can
+administer. `ON CONFLICT DO NOTHING` still stands, so an address demoted on
+purpose is not promoted back by the next deploy.
+
+**A bug the browser found and the tests could not.** The API client set
+`content-type: application/json` on every request including those with no
+body, which makes Fastify's parser look for a body and reject a `DELETE` as
+malformed. Removing a user would have failed with a 400 from the deployed
+interface. Fixed in `api.ts`; the header is now sent only with a body.
 
 ## Tests
 
@@ -102,4 +130,9 @@ TESTING.md:
 - The 0010 migration leaves existing rows as `owner`, on a database built from
   the migration files
 - The last `owner` cannot be demoted or deleted, including by two requests
-  racing
+  racing — `tests/admin/users.test.ts` runs the two demotions concurrently
+  and asserts exactly one survives. It is the test that fails without the
+  `FOR UPDATE` in `requireAnotherOwner`
+- The migration one runs against a scratch database in the same container,
+  taken up to 0009, seeded, and then through the real 0010 file — a fresh
+  test database has no rows to promote, so it could not have shown this
