@@ -25,10 +25,7 @@ Two services, two deployments, two database roles. One repo is not one process.
 
 ## Getting started
 
-```bash
-corepack enable
-pnpm install
-```
+[SETUP.md](SETUP.md) — what to install on a new machine, and the first run.
 
 ## Tests
 
