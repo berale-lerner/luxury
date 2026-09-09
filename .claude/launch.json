@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "admin",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--env-file=apps/admin/.env.local", "apps/admin/dist/dev-server.js"],
+      "port": 3000
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChannelIcon, channelLabel } from './ChannelIcon';
-import { dayLabel, sameDay, timeOf } from './format';
-import type { ConversationMessage, ConversationSummary } from './types';
+import { dayLabel, sameDay, timeOf } from '../../format';
+import type { ConversationMessage, ConversationSummary } from '../../types';
 
 interface Props {
   conversation: ConversationSummary;

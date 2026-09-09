@@ -1,4 +1,4 @@
-import type { ChannelName } from './types';
+import type { ChannelName } from '../../types';
 
 /**
  * The platform a conversation arrived on.

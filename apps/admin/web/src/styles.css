@@ -73,16 +73,92 @@ body {
 button { font: inherit; color: inherit; cursor: pointer; }
 input, textarea { font: inherit; color: inherit; }
 
-/* ── Layout ─────────────────────────────────────────────────────────────
-   Two panes on a wide screen, one at a time on a phone. The switch is a
-   single media query rather than a JS breakpoint, so it is correct before
-   the first paint and during a resize. */
+/* ── Shell ──────────────────────────────────────────────────────────────
+   Navigation beside the page on a wide screen, along the bottom on a phone.
+   The page fills whatever is left; it is never told how wide the screen is,
+   only how much room it has. */
+
+.app {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-main {
+  min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  /* What makes the page's own breakpoints measure the pane rather than the
+     window. Without it every page would have to know how wide the navigation
+     happens to be, and would be wrong the day that changes. */
+  container-type: inline-size;
+}
+
+.nav {
+  display: flex; flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  width: 68px; flex-shrink: 0;
+  padding: 10px 0;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--surface);
+  border-inline-end: 1px solid var(--border);
+}
+.nav-items { display: flex; flex-direction: column; gap: 4px; }
+.nav-account { display: flex; flex-direction: column; }
+
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 4px 7px;
+  margin: 0 8px;
+  border: 0; border-radius: 12px;
+  background: none; color: var(--text-dim);
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+.nav-item:hover { background: var(--surface-2); color: var(--text); }
+.nav-item[aria-current='page'] { background: var(--accent-soft); color: var(--accent); }
+
+.nav-label { font-size: 10.5px; font-weight: 600; letter-spacing: -0.01em; }
+
+.nav-avatar {
+  width: 21px; height: 21px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 11px; font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  /* The bar sits below the page, so the page is the first row even though
+     the navigation comes first in the markup — where it belongs for a
+     keyboard and a screen reader. */
+  .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .app-main { grid-row: 1; }
+  .nav {
+    grid-row: 2;
+    flex-direction: row; justify-content: space-around; align-items: center;
+    width: auto; padding: 4px 0;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+    border-inline-end: none; border-top: 1px solid var(--border);
+  }
+  .nav-items { flex-direction: row; }
+  /* A view that fills the phone and has its own way back hides the bar,
+     which would otherwise sit under the composer. */
+  .app[data-nav-on-narrow='false'] .nav { display: none; }
+}
+
+/* ── Conversations layout ───────────────────────────────────────────────
+   Two panes when there is room, one at a time when there is not. The switch
+   is a container query rather than a media query: what decides is the space
+   this page was given, not the size of the window, and those stopped being
+   the same number the moment navigation took a strip of it. */
 
 .shell {
   display: grid;
   grid-template-columns: minmax(320px, 380px) 1fr;
-  height: 100vh;
-  height: 100dvh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -103,10 +179,10 @@ input, textarea { font: inherit; color: inherit; }
   display: flex; flex-direction: column; background: var(--bg);
 }
 
-@media (max-width: 860px) {
+@container (max-width: 800px) {
   .shell { grid-template-columns: 1fr; }
   .pane-list { border-inline-end: none; }
-  /* On a phone the two panes occupy the same cell; only one is shown. */
+  /* In one column the two panes occupy the same cell; only one is shown. */
   .shell[data-view='list'] .pane-thread,
   .shell[data-view='thread'] .pane-list { display: none; }
 }
@@ -139,7 +215,7 @@ input, textarea { font: inherit; color: inherit; }
 }
 .icon-btn:hover { background: var(--surface-2); }
 .back-btn { display: none; }
-@media (max-width: 860px) { .back-btn { display: inline-flex; } }
+@container (max-width: 800px) { .back-btn { display: inline-flex; } }
 
 /* ── Search ────────────────────────────────────────────────────────── */
 
@@ -341,4 +417,11 @@ input, textarea { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── Shell states ──────────────────────────────────────────────────────── */
+
+.link-btn {
+  background: none; border: 0; padding: 0;
+  color: var(--accent); text-decoration: underline;
 }

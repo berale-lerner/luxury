@@ -166,17 +166,26 @@ describe('the tables Better Auth stores sign-in state in', () => {
   });
 });
 
-describe('the sign-in screen', () => {
-  it('starts the flow with a POST, which is what the library answers', async () => {
-    const source = await readFile(
-      new URL('../../apps/admin/web/src/SignIn.tsx', import.meta.url).pathname,
-      'utf8',
-    );
-    // Better Auth returns the provider URL in a JSON body rather than
-    // redirecting, so a plain <a href> reaches an endpoint that does not
-    // answer GET. The first deployment shipped exactly that and 404ed.
-    expect(source).toContain("method: 'POST'");
-    expect(source).not.toContain('href="/api/auth/sign-in');
-    expect(source).not.toContain('href="/api/auth/sign-out"');
-  });
+describe('the auth screens', () => {
+  // Better Auth returns the provider URL in a JSON body rather than
+  // redirecting, and answers sign-out on POST only. A plain <a href> reaches
+  // an endpoint that does not answer GET; the first deployment shipped
+  // exactly that and 404ed on the one action the page had.
+  //
+  // Every file that touches those endpoints is checked, not just the one that
+  // had the bug: sign-out has since moved into the navigation, which is where
+  // a signed-in manager actually reaches it.
+  const sources = ['shell/SignIn.tsx', 'shell/Nav.tsx'];
+
+  for (const file of sources) {
+    it(`${file} calls the auth endpoints with a POST`, async () => {
+      const source = await readFile(
+        new URL(`../../apps/admin/web/src/${file}`, import.meta.url).pathname,
+        'utf8',
+      );
+      expect(source).toContain("method: 'POST'");
+      expect(source).not.toContain('href="/api/auth/sign-in');
+      expect(source).not.toContain('href="/api/auth/sign-out"');
+    });
+  }
 });

@@ -1,6 +1,6 @@
 import { ChannelIcon } from './ChannelIcon';
-import { listStamp } from './format';
-import type { ConversationSummary } from './types';
+import { listStamp } from '../../format';
+import type { ConversationSummary } from '../../types';
 
 interface Props {
   conversations: ConversationSummary[];

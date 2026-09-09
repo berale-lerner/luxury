@@ -14,14 +14,47 @@ export class NotAllowedError extends Error {
   }
 }
 
+export type AuthFailure = 'signed-out' | 'not-allowed';
+
+const authListeners = new Set<(failure: AuthFailure) => void>();
+
+/**
+ * Announces that the server stopped accepting this session.
+ *
+ * It is reported from here, once, rather than by each page catching the two
+ * error types: the shell subscribes and replaces the screen, so a page added
+ * later gets that behaviour without knowing it exists. A page that forgets to
+ * handle an expired session is then not a page that silently keeps rendering
+ * stale data.
+ *
+ * The errors are still thrown — a caller that wants to stop what it was doing
+ * has to see them.
+ */
+export function onAuthFailure(listener: (failure: AuthFailure) => void): () => void {
+  authListeners.add(listener);
+  return () => {
+    authListeners.delete(listener);
+  };
+}
+
+function reportAuthFailure(failure: AuthFailure): void {
+  for (const listener of authListeners) listener(failure);
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   });
 
-  if (response.status === 401) throw new NotSignedInError();
-  if (response.status === 403) throw new NotAllowedError();
+  if (response.status === 401) {
+    reportAuthFailure('signed-out');
+    throw new NotSignedInError();
+  }
+  if (response.status === 403) {
+    reportAuthFailure('not-allowed');
+    throw new NotAllowedError();
+  }
   if (!response.ok) {
     throw new Error(`${init?.method ?? 'GET'} ${url} failed with ${response.status}`);
   }

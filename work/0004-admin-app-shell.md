@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 opened: 2026-09-09
 ---
 
@@ -59,18 +59,45 @@ Doing 3 first means untangling the same state under time pressure.
 - **No data access in the web layer** (CLAUDE.md). A page is a route plus
   calls through `api.ts` — the shell adds no new way to reach the server
 
-## Open
+## Resolved
 
-- Router or hand-rolled? Five pages with no nested routing may not justify a
-  dependency, but `history` handling written by hand is the kind of thing that
-  is fine until the back button is not
-- Where navigation goes on mobile. A bottom bar is the obvious answer and it
-  competes with the composer, which is already sticky against the visual
-  viewport for the reason in `4de5f3e`
+**Hand-rolled, in `shell/router.tsx`.** What made this safe is that the risk
+was never the matching — it was the history API, so that part is not
+improvised: `popstate` drives a `useSyncExternalStore` subscription, and
+`navigate` announces its own pushes because `pushState` deliberately fires
+nothing. Links are real anchors with real hrefs, so a middle click still
+opens a tab. The note stands: nested layouts or a route that suspends means
+replacing it, not growing it.
+
+**The bottom bar hides inside a thread.** A view that fills the phone and
+carries its own way back does not also need the bar, and that is exactly the
+collision with the composer — so it never happens. The rule is one field on
+the route (`navOnNarrow: false`), not a special case in the shell.
+
+**The breakpoint became a container query.** The conversations panes now
+measure the space the page was given rather than the window, which is what
+the open question was really about: the navigation takes a strip the panes
+never see, and any window-based number is wrong by exactly its width. The
+same applies in JavaScript — the auto-open effect measures the pane element,
+because `window.innerWidth` was wrong for the same reason and by the same
+amount.
+
+## Beyond what was asked
+
+Signing out existed only on the "not allowed" screen, which is the one screen
+a signed-in manager never reaches. It is now in the navigation.
 
 ## Tests
 
 TESTING.md puts frontend at 0-5% deliberately, and layout is exactly what it
-excludes. Nothing here needs a test — with one exception: if the shell ends up
-deciding what is reachable, that is authorization in the UI and it must be a
-server-side check with a test, not a hidden link.
+excludes. The shell decides nothing about what is reachable — that stayed with
+the server guard — so no test was owed for it.
+
+The one test that changed is the auth-endpoint check, which now covers the
+navigation too: sign-out moved there, and it is the same endpoint that shipped
+broken as an `<a href>` once already.
+
+Verified in the browser instead, since that is where layout is true: back and
+forward move between conversations with the header following, a deep link
+survives a full page load, the bar hides inside a thread on a phone and
+returns on the list, and the rail sits on the inline-start edge in Hebrew.
