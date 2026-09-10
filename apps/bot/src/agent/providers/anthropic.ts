@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { ModelCallError, retryableStatus } from '../model.js';
 import type { ModelClient, ModelRequest, ModelResponse } from '../model.js';
 
 /**
@@ -29,21 +30,31 @@ export function createAnthropicModel(options: AnthropicModelOptions): ModelClien
     provider: 'anthropic',
 
     async complete(request: ModelRequest): Promise<ModelResponse> {
-      const response = await client.messages.create({
-        model: options.model ?? 'claude-opus-5',
-        max_tokens: request.maxTokens ?? 1024,
-        // The published prompt is identical across every guest message, so it
-        // is the stable prefix worth caching.
-        system: [
-          {
-            type: 'text',
-            text: request.systemPrompt,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        output_config: { effort: options.effort ?? 'low' },
-        messages: request.turns.map((turn) => ({ role: turn.role, content: turn.text })),
-      });
+      let response;
+      try {
+        response = await client.messages.create({
+          model: options.model ?? 'claude-opus-5',
+          max_tokens: request.maxTokens ?? 1024,
+          // The published prompt is identical across every guest message, so it
+          // is the stable prefix worth caching.
+          system: [
+            {
+              type: 'text',
+              text: request.systemPrompt,
+              cache_control: { type: 'ephemeral' },
+            },
+          ],
+          output_config: { effort: options.effort ?? 'low' },
+          messages: request.turns.map((turn) => ({ role: turn.role, content: turn.text })),
+        });
+      } catch (error) {
+        // This vendor's failures, translated into the port's error. Keeping
+        // the translation here is what lets the reply loop stay ignorant of
+        // both SDKs' error shapes.
+        const status = (error as { status?: unknown }).status;
+        const code = typeof status === 'number' ? status : undefined;
+        throw new ModelCallError('anthropic', retryableStatus(code), code, { cause: error });
+      }
 
       // A safety decline arrives with HTTP 200 and no usable text, so it is
       // an outcome to return rather than an exception to catch.

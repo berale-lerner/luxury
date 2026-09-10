@@ -33,3 +33,41 @@ export interface ModelClient {
   readonly provider: string;
   complete(request: ModelRequest): Promise<ModelResponse>;
 }
+
+/**
+ * A call that did not produce an answer.
+ *
+ * `retryable` is the adapter's judgement, because classifying a provider's
+ * failures is exactly what an adapter is for: the reply loop must not learn
+ * to read one vendor's error shape, and it certainly must not learn two.
+ *
+ * The distinction is not "did it fail" but "would asking again help". A
+ * gateway error or a timeout, yes. An exhausted quota, no — the answer will
+ * be the same for the next minute, and asking again spends another unit of
+ * the very thing that ran out.
+ */
+export class ModelCallError extends Error {
+  constructor(
+    readonly provider: string,
+    readonly retryable: boolean,
+    readonly status: number | undefined,
+    options?: { cause?: unknown },
+  ) {
+    super(`${provider} call failed${status === undefined ? '' : ` with status ${status}`}`);
+    this.name = 'ModelCallError';
+    if (options?.cause !== undefined) this.cause = options.cause;
+  }
+}
+
+/**
+ * The shared rule the adapters apply once they have a status.
+ *
+ * 5xx and no-status (a socket that died, DNS, an abort) are worth another go.
+ * Everything in the 4xx range is not: 429 says the quota is gone and names
+ * the minute it comes back, and the rest are malformed requests that will
+ * fail identically forever.
+ */
+export function retryableStatus(status: number | undefined): boolean {
+  if (status === undefined) return true;
+  return status >= 500;
+}

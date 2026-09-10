@@ -1,4 +1,5 @@
 import { GoogleGenAI, FinishReason } from '@google/genai';
+import { ModelCallError, retryableStatus } from '../model.js';
 import type { ModelClient, ModelRequest, ModelResponse } from '../model.js';
 
 /**
@@ -35,19 +36,7 @@ export function createGeminiModel(options: GeminiModelOptions): ModelClient {
     provider: 'gemini',
 
     async complete(request: ModelRequest): Promise<ModelResponse> {
-      const response = await client.models.generateContent({
-        model: options.model ?? 'gemini-3.8-flash',
-        contents: request.turns.map((turn) => ({
-          // Gemini calls the assistant "model"; the port calls it
-          // "assistant". Translating here is this adapter's job.
-          role: turn.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: turn.text }],
-        })),
-        config: {
-          systemInstruction: request.systemPrompt,
-          maxOutputTokens: request.maxTokens ?? 1024,
-        },
-      });
+      const response = await callGemini(client, options, request);
 
       // A prompt blocked before generation reports no candidates at all.
       const blockReason = response.promptFeedback?.blockReason;
@@ -63,4 +52,36 @@ export function createGeminiModel(options: GeminiModelOptions): ModelClient {
       return { kind: 'text', text: response.text ?? '' };
     },
   };
+}
+
+/**
+ * The call, with this vendor's failures translated into the port's error.
+ *
+ * The SDK reports the status on the thrown object; reading it here keeps that
+ * knowledge in the one file allowed to know what a Gemini error looks like.
+ */
+async function callGemini(
+  client: GoogleGenAI,
+  options: GeminiModelOptions,
+  request: ModelRequest,
+) {
+  try {
+    return await client.models.generateContent({
+      model: options.model ?? 'gemini-3.8-flash',
+      contents: request.turns.map((turn) => ({
+        // Gemini calls the assistant "model"; the port calls it
+        // "assistant". Translating here is this adapter's job.
+        role: turn.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: turn.text }],
+      })),
+      config: {
+        systemInstruction: request.systemPrompt,
+        maxOutputTokens: request.maxTokens ?? 1024,
+      },
+    });
+  } catch (error) {
+    const status = (error as { status?: unknown }).status;
+    const code = typeof status === 'number' ? status : undefined;
+    throw new ModelCallError('gemini', retryableStatus(code), code, { cause: error });
+  }
 }

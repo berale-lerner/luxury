@@ -5,6 +5,18 @@ import type { MessagingClient } from '@luxury/messaging';
 /** The template the words come from. Editable in the database, not here. */
 const TEMPLATE_KEY = 'agent_unavailable';
 
+/**
+ * How long one notice speaks for.
+ *
+ * Found in production: a provider whose quota had run out failed every
+ * message, so every message got its own apology — including a backlogged one
+ * and a new one, a second apart, which reads as the bot malfunctioning rather
+ * than as the bot being honest. Saying it once and then staying quiet is the
+ * more truthful behaviour, and the messages are still on record for a manager
+ * to pick up.
+ */
+const REPEAT_AFTER_MS = 10 * 60 * 1000;
+
 export interface FallbackDeps {
   readonly pool: pg.Pool;
   readonly messaging: MessagingClient;
@@ -36,6 +48,11 @@ export async function sendUnavailableNotice(
   const log = deps.log ?? (() => {});
 
   try {
+    if (await recentlyNotified(deps.pool, conversationId)) {
+      log({ event: 'fallback.suppressed', conversationId, reason: 'already_notified' });
+      return false;
+    }
+
     const text = await loadTemplate(deps.pool, TEMPLATE_KEY);
     if (!text) {
       // No template, no message. Inventing one here would put guest-facing
@@ -56,6 +73,33 @@ export async function sendUnavailableNotice(
   } catch (error) {
     log({ event: 'fallback.failed', conversationId, err: error });
     return false;
+  }
+}
+
+/** Whether this conversation has already been told, recently enough. */
+async function recentlyNotified(
+  pool: pg.Pool,
+  conversationId: ConversationId,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT set_config($1, $2, true)', ['app.conversation_id', conversationId]);
+    const result = await client.query(
+      `SELECT 1 FROM public.messages
+        WHERE conversation_id = $1
+          AND sender = 'system'
+          AND created_at > now() - ($2 || ' milliseconds')::interval
+        LIMIT 1`,
+      [conversationId, String(REPEAT_AFTER_MS)],
+    );
+    await client.query('COMMIT');
+    return result.rowCount === 1;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }
 

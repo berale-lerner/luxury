@@ -1,3 +1,4 @@
+import { ModelCallError } from './model.js';
 import type { ConversationTurn, ModelClient } from './model.js';
 
 export interface AgentReply {
@@ -43,6 +44,19 @@ function wait(ms: number): Promise<void> {
 }
 
 /**
+ * Whether asking again could plausibly help.
+ *
+ * A timeout, yes — it says nothing about whether the provider is willing. A
+ * ModelCallError carries the adapter's own judgement. Anything else is an
+ * unfamiliar failure, and one more attempt is a cheaper bet than giving up on
+ * a bug in our own code.
+ */
+function worthRetrying(error: unknown): boolean {
+  if (error instanceof ModelCallError) return error.retryable;
+  return true;
+}
+
+/**
  * One call, bounded in time.
  *
  * The timer is cleared on both paths: a pending timeout would otherwise hold
@@ -80,9 +94,14 @@ async function completeWithin(
  *
  * Retries live here rather than in each adapter: an unlucky call is not a
  * property of any one vendor, and writing it twice is how the two end up
- * behaving slightly differently. What is retried is a failure to answer — a
- * refusal is not one. The model answered, and the answer was no; asking again
- * would be arguing with it.
+ * behaving slightly differently. Which failures are worth retrying is the
+ * adapter's call, carried on ModelCallError — this loop asks, it does not
+ * inspect anyone's error shape.
+ *
+ * Two things are never retried. A refusal is not a failure: the model
+ * answered, and the answer was no. And an exhausted quota is not bad luck —
+ * found in production as a 429 naming the minute it would return, where a
+ * second attempt spent another unit of the very thing that had run out.
  */
 export async function generateReply(
   deps: AgentDeps,
@@ -110,6 +129,7 @@ export async function generateReply(
     } catch (error) {
       // A refusal never arrives here — it comes back as a response, below.
       lastError = error;
+      if (!worthRetrying(error)) break;
       if (attempt < attempts) await sleep(backoffMs);
       continue;
     }

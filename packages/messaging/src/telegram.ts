@@ -76,14 +76,21 @@ export function createTelegramSender(options: TelegramSenderOptions): ChannelSen
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        await fetch(`${baseUrl}/bot${options.credentials.telegramBotToken}/sendChatAction`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ chat_id: destination.chatId, action: 'typing' }),
-          signal: controller.signal,
-        });
-        // The response is not checked. There is nothing to do about a
-        // rejected chat action, and the router swallows the throw anyway.
+        const response = await fetch(
+          `${baseUrl}/bot${options.credentials.telegramBotToken}/sendChatAction`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ chat_id: destination.chatId, action: 'typing' }),
+            signal: controller.signal,
+          },
+        );
+
+        // The caller does nothing with this — the router swallows it — but
+        // throwing is what puts the failure in a log. Silently ignoring the
+        // response made "the guest sees no typing indicator" unanswerable
+        // from production logs, which is the wrong kind of best effort.
+        if (!response.ok) throw new TelegramSendError(response.status);
       } finally {
         clearTimeout(timer);
       }

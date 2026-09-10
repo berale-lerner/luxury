@@ -12,7 +12,7 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 import type { ModelClient, ModelResponse } from '../../apps/bot/src/agent/index.js';
-import { PromptCache } from '../../apps/bot/src/agent/index.js';
+import { ModelCallError, PromptCache } from '../../apps/bot/src/agent/index.js';
 import { buildApp } from '../../apps/bot/src/app.js';
 import { createTelegramChannel } from '../../apps/bot/src/channels/index.js';
 import { urlForRole } from '../helpers/config.js';
@@ -66,8 +66,17 @@ function countingModel(behaviour: (call: number) => ModelResponse | Promise<Mode
   return { model, calls: () => calls };
 }
 
-const unavailable = () => {
-  throw Object.assign(new Error('model unavailable'), { status: 503 });
+/** A gateway error: nothing is said about willingness, so try again. */
+const unavailable = (): never => {
+  throw new ModelCallError('counting', true, 503);
+};
+
+/**
+ * An exhausted quota. Found in production as a 429 that named the minute it
+ * would come back — a second attempt spends another unit of what ran out.
+ */
+const outOfQuota = (): never => {
+  throw new ModelCallError('counting', false, 429);
 };
 
 function appWith(model: ModelClient, options: { sent: string[]; typing: string[] }) {
@@ -169,6 +178,51 @@ describe('a provider that is down', () => {
       await deliver(app, chat, 970003);
       await deliver(app, chat, 970003);
       expect(sent).toEqual([template]);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a quota that has run out', () => {
+  it('is asked once, not twice', async () => {
+    const chat = `${CHAT_PREFIX}08`;
+    const sent: string[] = [];
+    const model = countingModel(outOfQuota);
+    const app = appWith(model.model, { sent, typing: [] });
+    await app.ready();
+
+    try {
+      await deliver(app, chat, 970008);
+      // Retrying a 429 spends another request against the limit that has
+      // already been reached, and the answer is the same for a minute.
+      expect(model.calls()).toBe(1);
+      expect(sent).toEqual([template]);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a conversation already told', () => {
+  it('is not told again for every message that follows', async () => {
+    const chat = `${CHAT_PREFIX}09`;
+    const sent: string[] = [];
+    const app = appWith(countingModel(outOfQuota).model, { sent, typing: [] });
+    await app.ready();
+
+    try {
+      // Two separate guest messages, both failing. Found in production as
+      // two identical apologies a second apart, which reads as the bot
+      // malfunctioning rather than as the bot being honest.
+      await deliver(app, chat, 970009);
+      await deliver(app, chat, 970010);
+
+      expect(sent).toEqual([template]);
+      // Both messages are still on the record for a manager to pick up.
+      const rows = await messagesIn(chat);
+      expect(rows.filter((row) => row.direction === 'inbound')).toHaveLength(2);
+      expect(rows.filter((row) => row.sender === 'system')).toHaveLength(1);
     } finally {
       await app.close();
     }
