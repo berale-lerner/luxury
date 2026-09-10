@@ -31,7 +31,7 @@ export interface MessageCursor {
 export interface ConversationMessage {
   readonly id: string;
   readonly direction: 'inbound' | 'outbound';
-  readonly sender: 'guest' | 'agent' | 'manager';
+  readonly sender: 'guest' | 'agent' | 'manager' | 'system';
   readonly body: string;
   readonly createdAt: string;
 }
@@ -134,7 +134,7 @@ export async function getConversation(
   const messages = await pool.query<{
     id: string;
     direction: 'inbound' | 'outbound';
-    sender: 'guest' | 'agent' | 'manager';
+    sender: 'guest' | 'agent' | 'manager' | 'system';
     body: string;
     created_at: Date;
   }>(
@@ -205,7 +205,7 @@ export async function messagesSince(
   const result = await pool.query<{
     id: string;
     direction: 'inbound' | 'outbound';
-    sender: 'guest' | 'agent' | 'manager';
+    sender: 'guest' | 'agent' | 'manager' | 'system';
     body: string;
     created_at: Date;
   }>(

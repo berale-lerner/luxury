@@ -138,6 +138,8 @@ describe('the schema was built from the migrations', () => {
       '0009_conversation_contact_name.sql',
       '0010_admin_roles.sql',
       '0011_prompt_document_order.sql',
+      '0012_delivery_fallback.sql',
+      '0013_bot_may_count_deliveries.sql',
     ]);
   });
 });

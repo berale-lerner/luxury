@@ -25,6 +25,12 @@ export interface RecordedInbound {
   readonly conversationId: ConversationId;
   /** False when this update had already been stored — a provider redelivery. */
   readonly stored: boolean;
+  /**
+   * How many times the provider has now delivered this update. 1 on the
+   * first arrival; higher means earlier attempts did not end in a 2xx, which
+   * is the only signal available that answering keeps failing.
+   */
+  readonly deliveryAttempts: number;
   /** True while a manager holds the conversation; the agent stays silent. */
   readonly agentMuted: boolean;
 }
@@ -68,20 +74,31 @@ export async function recordInboundMessage(
       conversation.id,
     ]);
 
-    // ON CONFLICT DO NOTHING against the partial unique index on
-    // (conversation_id, provider_update_id): a redelivered update writes
-    // nothing and reports itself as already stored, so the agent does not
-    // answer the same message twice.
-    const inserted = await client.query<{ id: string }>(
+    // Against the partial unique index on (conversation_id,
+    // provider_update_id): a redelivered update never writes a second row, so
+    // the agent cannot answer the same message twice.
+    //
+    // DO UPDATE rather than DO NOTHING so the redelivery still says something:
+    // the counter is the only record that earlier attempts failed.
+    //
+    // The counter also says which branch ran, and that is why it is read
+    // rather than xmax: system columns are not reachable through a
+    // column-level grant, so `(xmax = 0)` would demand table-level SELECT on
+    // messages — a wider grant than this service should hold, bought for a
+    // fact the returned value already carries. The column defaults to 1 and
+    // only ever grows here, so 1 is the insert.
+    const upserted = await client.query<{ delivery_attempts: number }>(
       `INSERT INTO public.messages
          (conversation_id, direction, sender, body, provider_update_id)
        VALUES ($1, 'inbound', 'guest', $2, $3)
-       ON CONFLICT DO NOTHING
-       RETURNING id`,
+       ON CONFLICT (conversation_id, provider_update_id) WHERE provider_update_id IS NOT NULL
+       DO UPDATE SET delivery_attempts = public.messages.delivery_attempts + 1
+       RETURNING delivery_attempts`,
       [conversation.id, inbound.text, inbound.updateId],
     );
 
-    const stored = inserted.rowCount === 1;
+    const deliveryAttempts = upserted.rows[0]!.delivery_attempts;
+    const stored = deliveryAttempts === 1;
 
     if (stored) {
       await client.query(
@@ -95,6 +112,7 @@ export async function recordInboundMessage(
     return {
       conversationId: conversation.id as ConversationId,
       stored,
+      deliveryAttempts,
       agentMuted: conversation.agentMuted,
     };
   } catch (error) {

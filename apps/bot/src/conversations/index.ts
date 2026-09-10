@@ -8,3 +8,4 @@
 export * from './record-inbound.js';
 export * from './history.js';
 export * from './destination.js';
+export * from './fallback.js';

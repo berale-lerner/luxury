@@ -17,6 +17,8 @@ const SENDER_LABEL: Record<ConversationMessage['sender'], string> = {
   guest: 'לקוח',
   agent: 'סוכן',
   manager: 'אתה',
+  // Sent by the code when the agent could not answer at all.
+  system: 'הודעת מערכת',
 };
 
 export function Thread({

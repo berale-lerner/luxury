@@ -358,6 +358,14 @@ input, textarea { font: inherit; color: inherit; }
 .msg.in .bubble { background: var(--guest-bubble); border: 1px solid var(--border); border-start-start-radius: 5px; }
 .msg.out.agent .bubble { background: var(--agent-bubble); color: var(--agent-text); border-start-end-radius: 5px; }
 .msg.out.manager .bubble { background: var(--manager-bubble); color: var(--manager-text); border-start-end-radius: 5px; }
+/* Neither the agent nor the manager: the code apologising for a failure the
+   guest can see and neither of them chose. Muted, so it does not read as
+   someone speaking. */
+.msg.out.system .bubble {
+  background: var(--surface-2); color: var(--text-dim);
+  border: 1px dashed var(--border); box-shadow: none;
+  border-start-end-radius: 5px;
+}
 
 .msg-meta { font-size: 11.5px; color: var(--text-faint); padding: 0 4px; display: flex; gap: 6px; }
 .msg.out .msg-meta { justify-content: flex-end; }

@@ -1,6 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
-import { awaitsReply, recordInboundMessage } from '../conversations/index.js';
+import {
+  awaitsReply,
+  MAX_DELIVERY_ATTEMPTS,
+  recordInboundMessage,
+  sendUnavailableNotice,
+} from '../conversations/index.js';
 import type { ReplyDeps } from '../reply.js';
 import { replyToConversation } from '../reply.js';
 import type { InboundChannel } from './channel.js';
@@ -30,6 +35,15 @@ export interface WebhookDeps {
  *   exactly what should happen. Swallowing it would lose a guest's message
  *
  * The deduplicating insert is what makes accepting that retry safe.
+ *
+ * Failing to *answer* is the third case, and it is not the same as failing to
+ * store. The message is safely recorded; what broke is downstream — a model
+ * provider returning 503, most likely, which this service cannot fix and
+ * cannot outwait. Retrying is still right, because these clear up. But the
+ * retries are finite: after MAX_DELIVERY_ATTEMPTS deliveries of the same
+ * update the guest is told plainly that no answer is coming, and the delivery
+ * is accepted so the platform stops. The alternative is a guest watching
+ * nothing happen until the provider gives up quietly.
  */
 export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps): void {
   for (const channel of deps.channels) {
@@ -54,8 +68,9 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
 
       const inbound = result.message;
 
+      let recorded;
       try {
-        const recorded = await recordInboundMessage(deps.pool, inbound, channel.name);
+        recorded = await recordInboundMessage(deps.pool, inbound, channel.name);
         request.log.info(
           {
             event: 'channel.webhook.received',
@@ -63,11 +78,28 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
             conversationId: recorded.conversationId,
             updateId: inbound.updateId,
             stored: recorded.stored,
+            deliveryAttempts: recorded.deliveryAttempts,
             agentMuted: recorded.agentMuted,
           },
           'inbound message recorded',
         );
+      } catch (error) {
+        // Logged without the message body: conversation content is not
+        // written to logs (STANDARDS.md).
+        request.log.error(
+          {
+            event: 'channel.webhook.failed',
+            channel: channel.name,
+            updateId: inbound.updateId,
+            err: error,
+          },
+          'failed to store inbound message',
+        );
+        // Transient: ask the platform to send it again rather than lose it.
+        return reply.code(500).send({ error: 'internal' });
+      }
 
+      try {
         // Answered when the conversation is still waiting on one, rather than
         // when this particular delivery stored a row. A redelivery after a
         // failed attempt stores nothing, and keying on that left the guest's
@@ -80,17 +112,32 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
           );
         }
       } catch (error) {
-        // Logged without the message body: conversation content is not
-        // written to logs (STANDARDS.md).
         request.log.error(
           {
             event: 'channel.webhook.failed',
             channel: channel.name,
             updateId: inbound.updateId,
+            deliveryAttempts: recorded.deliveryAttempts,
             err: error,
           },
-          'failed to handle inbound message',
+          'failed to answer inbound message',
         );
+
+        if (deps.reply && recorded.deliveryAttempts >= MAX_DELIVERY_ATTEMPTS) {
+          // Last delivery. Say so, then accept it: another retry would only
+          // reach the same broken thing, and the guest has waited long enough
+          // to deserve a sentence rather than more silence.
+          await sendUnavailableNotice(
+            {
+              pool: deps.pool,
+              messaging: deps.reply.messaging,
+              log: (event) => request.log.info(event),
+            },
+            recorded.conversationId,
+          );
+          return reply.code(200).send({ ok: true });
+        }
+
         // Transient: ask the platform to send it again rather than lose it.
         return reply.code(500).send({ error: 'internal' });
       }

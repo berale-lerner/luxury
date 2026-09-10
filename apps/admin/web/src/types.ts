@@ -15,7 +15,12 @@ export interface ConversationSummary {
 export interface ConversationMessage {
   id: string;
   direction: 'inbound' | 'outbound';
-  sender: 'guest' | 'agent' | 'manager';
+  /**
+   * 'system' is written by the bot's own code, not by the model — the notice
+   * sent when the agent could not answer. Distinct so the thread does not
+   * credit the agent with words it never produced.
+   */
+  sender: 'guest' | 'agent' | 'manager' | 'system';
   body: string;
   createdAt: string;
 }
