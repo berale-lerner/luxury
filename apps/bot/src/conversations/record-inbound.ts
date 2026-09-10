@@ -15,6 +15,15 @@ export interface InboundTextMessage {
   readonly chatId: string;
   readonly text: string;
   /**
+   * When the guest pressed send, according to the platform.
+   *
+   * Not the same as when this row was written: a platform holds an update it
+   * could not deliver and hands it over later, sometimes much later. The
+   * difference is what separates "they wrote before we replied" from "they
+   * wrote again after reading what we said".
+   */
+  readonly sentAt: Date;
+  /**
    * What the platform says the person is called. Absent when the platform
    * does not say, and never treated as an identity — it is self-chosen.
    */

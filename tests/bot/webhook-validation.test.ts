@@ -73,7 +73,30 @@ describe('update parsing', () => {
   it('narrows a text message and stringifies the ids', () => {
     const parsed = telegramUpdateSchema.parse(base);
     const inbound = toInboundTextMessage(parsed);
-    expect(inbound).toEqual({ updateId: '42', chatId: '-100', text: 'hello' });
+    expect(inbound).toMatchObject({ updateId: '42', chatId: '-100', text: 'hello' });
+  });
+
+  it('carries the send time the platform reported, in seconds', () => {
+    const sent = Math.floor(Date.now() / 1000) - 90;
+    const parsed = telegramUpdateSchema.parse({
+      ...base,
+      message: { ...base.message, date: sent },
+    });
+    expect(toInboundTextMessage(parsed)?.sentAt).toEqual(new Date(sent * 1000));
+  });
+
+  it('treats an implausible send time as now', () => {
+    // It arrives in a payload, and it decides whether the guest has already
+    // been answered. Both a future date and a very old one read as "already
+    // told" and would leave them in silence, so neither is trusted.
+    for (const date of [Math.floor(Date.now() / 1000) + 600, 1]) {
+      const parsed = telegramUpdateSchema.parse({
+        ...base,
+        message: { ...base.message, date },
+      });
+      const sentAt = toInboundTextMessage(parsed)!.sentAt;
+      expect(Math.abs(sentAt.getTime() - Date.now())).toBeLessThan(2_000);
+    }
   });
 
   it('drops a message sent by another bot', () => {

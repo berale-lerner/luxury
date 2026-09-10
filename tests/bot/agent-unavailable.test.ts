@@ -102,14 +102,25 @@ function appWith(model: ModelClient, options: { sent: string[]; typing: string[]
   });
 }
 
-function deliver(app: ReturnType<typeof buildApp>, chatId: string, updateId: number) {
+/** `sentAt` is Telegram's own field: when the guest pressed send. */
+function deliver(
+  app: ReturnType<typeof buildApp>,
+  chatId: string,
+  updateId: number,
+  sentAt: Date = new Date(),
+) {
   return app.inject({
     method: 'POST',
     url: '/telegram/webhook',
     headers: { 'x-telegram-bot-api-secret-token': SECRET },
     payload: {
       update_id: updateId,
-      message: { message_id: 1, chat: { id: Number(chatId) }, date: 1, text: 'Do you have space?' },
+      message: {
+        message_id: 1,
+        chat: { id: Number(chatId) },
+        date: Math.floor(sentAt.getTime() / 1000),
+        text: 'Do you have space?',
+      },
     },
   });
 }
@@ -204,25 +215,49 @@ describe('a quota that has run out', () => {
   });
 });
 
-describe('a conversation already told', () => {
-  it('is not told again for every message that follows', async () => {
+describe('a backlog delivered all at once', () => {
+  it('is answered by one notice, not one each', async () => {
     const chat = `${CHAT_PREFIX}09`;
     const sent: string[] = [];
     const app = appWith(countingModel(outOfQuota).model, { sent, typing: [] });
     await app.ready();
 
     try {
-      // Two separate guest messages, both failing. Found in production as
-      // two identical apologies a second apart, which reads as the bot
-      // malfunctioning rather than as the bot being honest.
-      await deliver(app, chat, 970009);
-      await deliver(app, chat, 970010);
+      // Both written before either was delivered — the platform held them
+      // while the service was down and handed them over together. Seen in
+      // production as two identical apologies a second apart, which reads as
+      // the bot malfunctioning rather than as the bot being honest.
+      const earlier = new Date(Date.now() - 5 * 60_000);
+      await deliver(app, chat, 970009, earlier);
+      await deliver(app, chat, 970010, earlier);
 
       expect(sent).toEqual([template]);
-      // Both messages are still on the record for a manager to pick up.
+      // Both are still on the record for a manager to pick up.
       const rows = await messagesIn(chat);
       expect(rows.filter((row) => row.direction === 'inbound')).toHaveLength(2);
       expect(rows.filter((row) => row.sender === 'system')).toHaveLength(1);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe('a guest who writes again after being told', () => {
+  it('is answered again, not left in silence', async () => {
+    const chat = `${CHAT_PREFIX}10`;
+    const sent: string[] = [];
+    const app = appWith(countingModel(outOfQuota).model, { sent, typing: [] });
+    await app.ready();
+
+    try {
+      await deliver(app, chat, 970011, new Date(Date.now() - 60_000));
+      expect(sent).toEqual([template]);
+
+      // Written after reading the notice. The first version of this rule
+      // muted the conversation for ten minutes, which from the guest's side
+      // is the bot ignoring them — worse than the duplicate it fixed.
+      await deliver(app, chat, 970012, new Date());
+      expect(sent).toEqual([template, template]);
     } finally {
       await app.close();
     }

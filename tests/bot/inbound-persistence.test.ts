@@ -46,6 +46,7 @@ describe('recording an inbound message', () => {
       updateId: '1001',
       chatId: chat('first'),
       text: 'Do you have anything free in April?',
+      sentAt: new Date(),
     }, 'telegram');
 
     expect(result.stored).toBe(true);
@@ -68,11 +69,13 @@ describe('recording an inbound message', () => {
       updateId: '2001',
       chatId,
       text: 'Hello',
+      sentAt: new Date(),
     }, 'telegram');
     const second = await recordInboundMessage(pool, {
       updateId: '2002',
       chatId,
       text: 'Are you there?',
+      sentAt: new Date(),
     }, 'telegram');
 
     // The regression this guards: without a way to look a conversation up by
@@ -83,7 +86,7 @@ describe('recording an inbound message', () => {
 
   it('stores a redelivered update only once', async () => {
     const chatId = chat('redelivery');
-    const update = { updateId: '3001', chatId, text: 'Sent once, delivered twice' };
+    const update = { updateId: '3001', chatId, text: 'Sent once, delivered twice', sentAt: new Date() };
 
     const first = await recordInboundMessage(pool, update, 'telegram');
     const retry = await recordInboundMessage(pool, update, 'telegram');
@@ -101,11 +104,13 @@ describe('recording an inbound message', () => {
       updateId: '4001',
       chatId: chat('sep-a'),
       text: 'from A',
+      sentAt: new Date(),
     }, 'telegram');
     const b = await recordInboundMessage(pool, {
       updateId: '4002',
       chatId: chat('sep-b'),
       text: 'from B',
+      sentAt: new Date(),
     }, 'telegram');
 
     expect(a.conversationId).not.toBe(b.conversationId);
@@ -119,6 +124,7 @@ describe('recording an inbound message', () => {
       updateId: '5001',
       chatId,
       text: 'first',
+      sentAt: new Date(),
     }, 'telegram');
 
     await admin.query('UPDATE public.conversations SET agent_muted = true WHERE id = $1', [
@@ -129,6 +135,7 @@ describe('recording an inbound message', () => {
       updateId: '5002',
       chatId,
       text: 'second',
+      sentAt: new Date(),
     }, 'telegram');
 
     // The message is still recorded — the manager needs to see it. What the
@@ -142,6 +149,7 @@ describe('recording an inbound message', () => {
       updateId: '6001',
       chatId: chat('timestamp'),
       text: 'tick',
+      sentAt: new Date(),
     }, 'telegram');
 
     const row = await admin.query(
@@ -156,7 +164,7 @@ describe('the name the platform reports', () => {
   it('is stored when the conversation is created', async () => {
     const result = await recordInboundMessage(
       pool,
-      { updateId: '7001', chatId: chat('named'), text: 'hello', contactName: 'Dana Cohen' },
+      { updateId: '7001', chatId: chat('named'), text: 'hello', contactName: 'Dana Cohen', sentAt: new Date() },
       'telegram',
     );
 
@@ -171,12 +179,12 @@ describe('the name the platform reports', () => {
     const chatId = chat('renamed');
     const first = await recordInboundMessage(
       pool,
-      { updateId: '7101', chatId, text: 'hello', contactName: 'Dana' },
+      { updateId: '7101', chatId, text: 'hello', contactName: 'Dana', sentAt: new Date() },
       'telegram',
     );
     await recordInboundMessage(
       pool,
-      { updateId: '7102', chatId, text: 'again', contactName: 'Dana Cohen' },
+      { updateId: '7102', chatId, text: 'again', contactName: 'Dana Cohen', sentAt: new Date() },
       'telegram',
     );
 
@@ -193,10 +201,14 @@ describe('the name the platform reports', () => {
     const chatId = chat('nameless');
     const first = await recordInboundMessage(
       pool,
-      { updateId: '7201', chatId, text: 'hello', contactName: 'Dana Cohen' },
+      { updateId: '7201', chatId, text: 'hello', contactName: 'Dana Cohen', sentAt: new Date() },
       'telegram',
     );
-    await recordInboundMessage(pool, { updateId: '7202', chatId, text: 'again' }, 'telegram');
+    await recordInboundMessage(
+      pool,
+      { updateId: '7202', chatId, text: 'again', sentAt: new Date() },
+      'telegram',
+    );
 
     const row = await admin.query<{ contact_name: string | null }>(
       'SELECT contact_name FROM public.conversations WHERE id = $1',

@@ -37,6 +37,8 @@ export const telegramUpdateSchema = z.object({
           username: z.string().max(200).optional(),
         })
         .optional(),
+      // Unix seconds, UTC. Telegram states no timezone anywhere in an
+      // update, so this is the moment and nothing about where the guest is.
       date: z.number().int(),
       text: z.string().min(1).max(MAX_TEXT_LENGTH),
     })
@@ -64,8 +66,28 @@ export function toInboundTextMessage(update: TelegramUpdate): InboundTextMessage
     updateId: String(update.update_id),
     chatId: String(message.chat.id),
     text: message.text,
+    sentAt: sentAt(message.date),
     ...(name ? { contactName: name } : {}),
   };
+}
+
+/**
+ * The platform's timestamp, bounded.
+ *
+ * It arrives in a payload, so it is input: a value in the future or from last
+ * year would be used to decide whether the guest has already been answered,
+ * and both readings are wrong in the direction of silence. Anything
+ * implausible is treated as now, which is the safe end — it means the guest
+ * gets told rather than ignored.
+ */
+function sentAt(unixSeconds: number): Date {
+  const at = new Date(unixSeconds * 1000);
+  const now = Date.now();
+  const aDay = 24 * 60 * 60 * 1000;
+  if (Number.isNaN(at.getTime()) || at.getTime() > now || now - at.getTime() > aDay) {
+    return new Date(now);
+  }
+  return at;
 }
 
 /** First and last name if given, else the @username, else nothing. */

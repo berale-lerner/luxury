@@ -6,16 +6,31 @@ import type { MessagingClient } from '@luxury/messaging';
 const TEMPLATE_KEY = 'agent_unavailable';
 
 /**
- * How long one notice speaks for.
+ * How far after a guest's message a notice must land to count as answering it.
  *
- * Found in production: a provider whose quota had run out failed every
- * message, so every message got its own apology — including a backlogged one
- * and a new one, a second apart, which reads as the bot malfunctioning rather
- * than as the bot being honest. Saying it once and then staying quiet is the
- * more truthful behaviour, and the messages are still on record for a manager
- * to pick up.
+ * Telegram states send times in whole seconds, so a message written at
+ * 10.9s arrives claiming 10.0s — up to a second earlier than it happened. A
+ * strict comparison therefore reads a reply sent moments after the notice as
+ * having come before it, and silences the guest.
+ *
+ * Two seconds of margin, and it errs deliberately: within that window the
+ * guest gets told twice rather than not at all.
  */
-const REPEAT_AFTER_MS = 10 * 60 * 1000;
+const CLOCK_MARGIN_MS = 2_000;
+
+/**
+ * Whether this guest has already been answered by an earlier notice.
+ *
+ * The question is not "did we say this recently" — that was the first attempt
+ * at this, and it silenced a guest who wrote again a minute later, which from
+ * their side is the bot ignoring them. It is: had we already said it *by the
+ * time they pressed send*?
+ *
+ * A guest whose message predates the notice has been answered by it, even
+ * though the platform delivered their message afterwards — that is the burst
+ * of two identical apologies a second apart, seen in production. A guest who
+ * wrote after reading it is asking again knowingly, and deserves a reply.
+ */
 
 export interface FallbackDeps {
   readonly pool: pg.Pool;
@@ -44,12 +59,19 @@ export interface FallbackDeps {
 export async function sendUnavailableNotice(
   deps: FallbackDeps,
   conversationId: ConversationId,
+  /** When the guest pressed send, per the platform. */
+  guestWroteAt: Date,
 ): Promise<boolean> {
   const log = deps.log ?? (() => {});
 
   try {
-    if (await recentlyNotified(deps.pool, conversationId)) {
-      log({ event: 'fallback.suppressed', conversationId, reason: 'already_notified' });
+    const notifiedAt = await lastNoticeAt(deps.pool, conversationId);
+    if (notifiedAt && notifiedAt.getTime() > guestWroteAt.getTime() + CLOCK_MARGIN_MS) {
+      log({
+        event: 'fallback.suppressed',
+        conversationId,
+        reason: 'answered_by_earlier_notice',
+      });
       return false;
     }
 
@@ -76,25 +98,24 @@ export async function sendUnavailableNotice(
   }
 }
 
-/** Whether this conversation has already been told, recently enough. */
-async function recentlyNotified(
+/** When this conversation was last told, or null if it never has been. */
+async function lastNoticeAt(
   pool: pg.Pool,
   conversationId: ConversationId,
-): Promise<boolean> {
+): Promise<Date | null> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.conversation_id', conversationId]);
-    const result = await client.query(
-      `SELECT 1 FROM public.messages
-        WHERE conversation_id = $1
-          AND sender = 'system'
-          AND created_at > now() - ($2 || ' milliseconds')::interval
+    const result = await client.query<{ created_at: Date }>(
+      `SELECT created_at FROM public.messages
+        WHERE conversation_id = $1 AND sender = 'system'
+        ORDER BY created_at DESC
         LIMIT 1`,
-      [conversationId, String(REPEAT_AFTER_MS)],
+      [conversationId],
     );
     await client.query('COMMIT');
-    return result.rowCount === 1;
+    return result.rows[0]?.created_at ?? null;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

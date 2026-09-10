@@ -93,6 +93,7 @@ async function openConversation(text: string): Promise<{ id: ConversationId; mut
     updateId: `reply-${counter}-1`,
     chatId: `tg-reply-${counter}`,
     text,
+    sentAt: new Date(),
   }, 'telegram');
   return { id: recorded.conversationId, muted: recorded.agentMuted };
 }
@@ -185,6 +186,7 @@ describe('replying to a conversation', () => {
       updateId: `reply-${counter}-2`,
       chatId: `tg-reply-${counter}`,
       text: 'Second question',
+      sentAt: new Date(),
     }, 'telegram');
 
     let seen!: ModelRequest;

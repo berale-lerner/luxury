@@ -93,7 +93,7 @@ describe('the channel port', () => {
         if (!body.text) return { kind: 'ignored', reason: 'no_text' };
         return {
           kind: 'message',
-          message: { updateId: body.id ?? '1', chatId: body.from ?? 'unknown', text: body.text },
+          message: { updateId: body.id ?? '1', chatId: body.from ?? 'unknown', text: body.text, sentAt: new Date() },
         };
       },
     };
@@ -136,12 +136,12 @@ describe('the channel port', () => {
     const shared = 'generic-same-id';
     const viaTelegram = await recordInboundMessage(
       bot,
-      { updateId: 'g-10', chatId: shared, text: 'from telegram' },
+      { updateId: 'g-10', chatId: shared, text: 'from telegram', sentAt: new Date() },
       'telegram',
     );
     const viaWhatsapp = await recordInboundMessage(
       bot,
-      { updateId: 'g-11', chatId: shared, text: 'from whatsapp' },
+      { updateId: 'g-11', chatId: shared, text: 'from whatsapp', sentAt: new Date() },
       'whatsapp',
     );
 

@@ -131,6 +131,7 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
               log: (event) => request.log.info(event),
             },
             recorded.conversationId,
+            inbound.sentAt,
           );
         }
 
