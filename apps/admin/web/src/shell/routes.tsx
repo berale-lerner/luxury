@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ConversationsPage } from '../pages/conversations/ConversationsPage';
+import { PromptPage } from '../pages/prompt/PromptPage';
 import { UsersPage } from '../pages/users/UsersPage';
 import type { AdminRole, Me } from '../types';
 
@@ -41,6 +42,18 @@ export interface Route {
   render(params: Readonly<Record<string, string>>, me: Me): ReactNode;
 }
 
+const PromptIcon = (
+  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M13 2.5H7a2.5 2.5 0 0 0-2.5 2.5v14A2.5 2.5 0 0 0 7 21.5h10a2.5 2.5 0 0 0 2.5-2.5V9M13 2.5 19.5 9M13 2.5V9h6.5M8.5 13.5h7M8.5 17h4.5"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const UsersIcon = (
   <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path
@@ -81,6 +94,17 @@ export const routes: readonly Route[] = [
     // A thread fills a phone screen and carries its own back button.
     navOnNarrow: false,
     render: (params) => <ConversationsPage selectedId={params.id ?? null} />,
+  },
+  {
+    path: '/prompt',
+    section: 'prompt',
+    title: 'פרומפט',
+    label: 'פרומפט',
+    icon: PromptIcon,
+    // Reading is a manager's; every change behind this page is an owner's,
+    // enforced on the endpoints rather than by which link is drawn.
+    minRole: 'manager',
+    render: () => <PromptPage />,
   },
   {
     path: '/users',

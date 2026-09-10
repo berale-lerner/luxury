@@ -137,6 +137,7 @@ describe('the schema was built from the migrations', () => {
       '0008_auth_tables.sql',
       '0009_conversation_contact_name.sql',
       '0010_admin_roles.sql',
+      '0011_prompt_document_order.sql',
     ]);
   });
 });

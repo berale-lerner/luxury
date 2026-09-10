@@ -5,6 +5,7 @@ import type { MessagingClient } from '@luxury/messaging';
 import { createAdminGuard, type SessionReader } from './auth/session.js';
 import { assertRouteDeclaresRole, createRoleGate } from './auth/roles.js';
 import { registerConversationRoutes } from './conversations/routes.js';
+import { registerPromptRoutes } from './prompts/routes.js';
 import { registerUserRoutes } from './users/routes.js';
 
 export interface BuildAppOptions {
@@ -38,6 +39,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
 
     registerConversationRoutes(guarded, { pool: options.pool, messaging: options.messaging });
     registerUserRoutes(guarded, { pool: options.pool });
+    registerPromptRoutes(guarded, { pool: options.pool });
   });
 
   if (options.webRoot) {

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 opened: 2026-09-09
 ---
 
@@ -56,7 +56,7 @@ So the work here is the page, not the storage.
   byte-identical output to what publish stores, so this belongs in one shared
   place before there are two callers, not after
 
-## The trap: deploy republishes over the manager
+## Resolved: deploy republishes over the manager
 
 `scripts/deploy.mjs` calls `publishIfChanged` on **every deploy**. It assembles
 `prompts/guest/` from the repo and publishes a new version whenever the body
@@ -67,22 +67,31 @@ version 5 in the UI, the next push deploys, the files still say something
 else, and version 6 rewinds their work — with no error, because from the
 script's point of view it did its job.
 
-Deciding what happens to `publishIfChanged` is part of this task, not after
-it. Bootstrapping a fresh database still needs it, so the likely shape is
-publish-only-if-nothing-has-ever-been-published — but it is a decision to make
-deliberately.
+**Decided: first-publish-only.** `publishIfChanged` became
+`publishIfUnpublished` and now returns early whenever any version exists for
+the agent. A fresh database still comes up with an agent that can answer;
+after that the prompt belongs to the screen, and `prompts/` is a starting
+point rather than a source of truth. The deploy test asserts the case that
+matters — the files changed and it published nothing — and that a draft the
+manager is mid-edit is left alone.
 
-## Two things that will bite in implementation
+## Resolved: two things that bit, as predicted
 
-**Reordering.** `UNIQUE (agent_id, position)` is checked per row, so swapping
-two documents fails halfway through no matter how the update is written.
-Either the constraint becomes `DEFERRABLE` in a migration and the reorder runs
-in one transaction, or positions are rewritten through a temporary range.
-The first is cleaner and it is a three-line migration.
+**Reordering.** Migration 0011 makes the constraint `DEFERRABLE INITIALLY
+IMMEDIATE`, so an ordinary insert still fails where the error is useful and a
+reorder asks for the check to be postponed to `COMMIT`. `reorderDocuments`
+also refuses a list that does not name every document exactly once — a partial
+list would leave the rest sitting on positions the same pass just handed out.
 
-**Version numbers.** `UNIQUE (agent_id, version_number)` means two publishes
-at once collide. Allocate inside the transaction with a lock on the agent row
-rather than reading the maximum and adding one.
+**Version numbers.** Allocated inside the transaction behind
+`SELECT ... FROM agents ... FOR UPDATE`. The test runs two publishes at once
+and asserts no version number repeats.
+
+**One that was not predicted:** whether publishing would change anything has
+to be decided by the server, not by comparing character counts in the browser.
+`getPrompt` returns `hasChanges`, compared against the stored text — otherwise
+the screen offers a button the server refuses, or hides one it would have
+accepted.
 
 ## Revert
 
@@ -110,6 +119,18 @@ noticing.
 [0005](0005-user-management-and-roles.md) decides who may publish — an edit
 here changes what every guest is told, immediately and with no deploy to roll
 back, which argues for the highest role rather than the middle one.
+
+## Where the assembly rule lives
+
+`packages/shared/src/prompt.ts` — `PROMPT_SEPARATOR` and `assemblePrompt`.
+Pure, no data access, no environment, which is what makes shared the right
+home for it. Three callers use it: the preview, the publish, and the
+bootstrap script.
+
+One difference from the old script worth knowing: the shared function honours
+`isActive`, and the file-based bootstrap has no such concept — every file is
+a document. That is correct for a bootstrap and would be a divergence if the
+script were still the main path, which is exactly why it no longer is.
 
 ## Tests
 

@@ -1,10 +1,11 @@
 /**
- * The deploy step that publishes the prompt.
+ * The deploy step that seeds the prompt.
  *
- * It runs on every deploy, so the property that matters is that it does
- * nothing when nothing changed. Without that it would climb the version
- * number on each push, and — once the admin screen exists — overwrite what
- * the owner published by hand with whatever is in the repository.
+ * It runs on every deploy, and the admin screen now publishes too, so the
+ * property that matters is that it publishes exactly once: on a database that
+ * has no version at all. Anything looser and a push would quietly replace
+ * what the owner published minutes earlier with whatever is in the
+ * repository — no error, because from the script's side it did its job.
  */
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -12,7 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
 // @ts-expect-error — plain .mjs, shared with the deploy entry point.
-import { publishIfChanged, seedAllowlist, syncRolePasswords } from '../../scripts/deploy.mjs';
+import { publishIfUnpublished, seedAllowlist, syncRolePasswords } from '../../scripts/deploy.mjs';
 import { OWNER_URL } from '../helpers/config.js';
 
 let owner: pg.Client;
@@ -39,43 +40,20 @@ async function writePrompt(name: string, body: string): Promise<void> {
   await writeFile(join(root, 'prompts', AGENT, name), body, 'utf8');
 }
 
-describe('publishing on deploy', () => {
-  it('publishes the first version', async () => {
+describe('seeding the prompt on deploy', () => {
+  it('publishes the first version, in filename order', async () => {
     await writePrompt('010-role.md', 'You are the assistant.');
-    expect(await publishIfChanged(owner, AGENT, root)).toEqual({
-      published: true,
-      versionNumber: 1,
-    });
-  });
-
-  it('does nothing when the text is unchanged', async () => {
-    // The whole point: a deploy that changed nothing else must not publish.
-    expect(await publishIfChanged(owner, AGENT, root)).toEqual({
-      published: false,
-      versionNumber: 1,
-    });
-  });
-
-  it('publishes a new version when the text changes', async () => {
-    await writePrompt('010-role.md', 'You are the assistant. Check-in is at 15:00.');
-    expect(await publishIfChanged(owner, AGENT, root)).toEqual({
-      published: true,
-      versionNumber: 2,
-    });
-  });
-
-  it('treats an added document as a change, and keeps filename order', async () => {
     await writePrompt('005-first.md', 'Read me first.');
 
-    expect(await publishIfChanged(owner, AGENT, root)).toEqual({
+    expect(await publishIfUnpublished(owner, AGENT, root)).toEqual({
       published: true,
-      versionNumber: 3,
+      versionNumber: 1,
     });
 
     const stored = await owner.query<{ body: string }>(
       `SELECT body FROM public.prompt_versions
         WHERE agent_id = (SELECT id FROM public.agents WHERE key = $1)
-          AND version_number = 3`,
+          AND version_number = 1`,
       [AGENT],
     );
     // Assembly is concatenation, so the filename prefix is the order.
@@ -84,8 +62,48 @@ describe('publishing on deploy', () => {
     );
   });
 
-  it('publishes nothing for an agent with no prompt directory', async () => {
-    expect(await publishIfChanged(owner, 'no-such-agent', root)).toEqual({ published: false });
+  it('does nothing on the next deploy, even when the files changed', async () => {
+    // The one that matters. The manager publishes version 2 from the screen,
+    // the repository still says something else, and this must leave it alone.
+    await writePrompt('010-role.md', 'Something entirely different.');
+
+    expect(await publishIfUnpublished(owner, AGENT, root)).toEqual({
+      published: false,
+      versionNumber: 1,
+    });
+
+    const count = await owner.query<{ n: string }>(
+      `SELECT count(*) AS n FROM public.prompt_versions
+        WHERE agent_id = (SELECT id FROM public.agents WHERE key = $1)`,
+      [AGENT],
+    );
+    expect(Number(count.rows[0]!.n)).toBe(1);
+  });
+
+  it('does not overwrite documents the screen is editing', async () => {
+    // The draft is the manager's working copy. A deploy has no business in it.
+    const agentId = (
+      await owner.query<{ id: string }>('SELECT id FROM public.agents WHERE key = $1', [AGENT])
+    ).rows[0]!.id;
+    await owner.query('DELETE FROM public.prompt_documents WHERE agent_id = $1', [agentId]);
+    await owner.query(
+      `INSERT INTO public.prompt_documents (agent_id, title, body, position, updated_by)
+       VALUES ($1, 'draft', 'Half a sentence the manager is still', 10, 'manager@example.com')`,
+      [agentId],
+    );
+
+    await publishIfUnpublished(owner, AGENT, root);
+
+    const documents = await owner.query<{ body: string; updated_by: string }>(
+      'SELECT body, updated_by FROM public.prompt_documents WHERE agent_id = $1',
+      [agentId],
+    );
+    expect(documents.rows).toHaveLength(1);
+    expect(documents.rows[0]!.updated_by).toBe('manager@example.com');
+  });
+
+  it('publishes nothing for an agent that does not exist', async () => {
+    expect(await publishIfUnpublished(owner, 'no-such-agent', root)).toEqual({ published: false });
   });
 });
 

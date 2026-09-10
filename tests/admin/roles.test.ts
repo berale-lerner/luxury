@@ -38,7 +38,7 @@ const messaging = {
 };
 
 /** Runs one request against the real app as one of the three people. */
-async function as(email: string, method: 'GET' | 'POST', url: string) {
+async function as(email: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string) {
   const app = buildApp({ pool, session: sessionOf(email), messaging, logLevel: 'silent' });
   await app.ready();
   try {
@@ -107,6 +107,31 @@ describe('a manager', () => {
 describe('an owner', () => {
   it('manages users', async () => {
     expect((await as(OWNER, 'GET', '/api/users')).statusCode).toBe(200);
+  });
+});
+
+describe('the prompt', () => {
+  // Reading how the business talks is a manager's; changing it is not. An
+  // edit here changes what every guest is told, immediately, with no deploy
+  // to roll back — which is heavier than answering one of them.
+  it('is readable by a manager', async () => {
+    expect((await as(MANAGER, 'GET', '/api/agents')).statusCode).toBe(200);
+  });
+
+  it('is not readable by a viewer', async () => {
+    expect((await as(VIEWER, 'GET', '/api/agents')).statusCode).toBe(403);
+  });
+
+  it.each([
+    ['POST', '/api/agents/guest/documents'],
+    ['POST', '/api/agents/guest/order'],
+    ['POST', '/api/agents/guest/publish'],
+    ['POST', '/api/agents/guest/versions/1/revert'],
+    ['DELETE', `/api/agents/guest/documents/${SOME_CONVERSATION}`],
+  ] as const)('is not changed by a manager: %s %s', async (method, url) => {
+    const response = await as(MANAGER, method, url);
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: 'insufficient_role', required: 'owner' });
   });
 });
 

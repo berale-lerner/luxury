@@ -1,6 +1,10 @@
 import type {
   AdminRole,
   AdminUser,
+  Agent,
+  PromptDocument,
+  PromptState,
+  PromptVersion,
   ConversationMessage,
   ConversationSummary,
   Me,
@@ -113,6 +117,47 @@ export const api = {
     }),
 
   removeUser: (id: string) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
+
+  agents: () => request<{ agents: Agent[] }>('/api/agents'),
+
+  prompt: (key: string) => request<PromptState>(`/api/agents/${key}/prompt`),
+
+  addDocument: (key: string, title: string, body = '') =>
+    request<{ document: PromptDocument }>(`/api/agents/${key}/documents`, {
+      method: 'POST',
+      body: JSON.stringify({ title, body }),
+    }),
+
+  updateDocument: (
+    key: string,
+    id: string,
+    changes: { title?: string; body?: string; isActive?: boolean },
+  ) =>
+    request<{ document: PromptDocument }>(`/api/agents/${key}/documents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+
+  deleteDocument: (key: string, id: string) =>
+    request<void>(`/api/agents/${key}/documents/${id}`, { method: 'DELETE' }),
+
+  reorderDocuments: (key: string, ids: string[]) =>
+    request<{ documents: PromptDocument[] }>(`/api/agents/${key}/order`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
+  publishPrompt: (key: string) =>
+    request<{ version: PromptVersion }>(`/api/agents/${key}/publish`, { method: 'POST' }),
+
+  promptVersions: (key: string) =>
+    request<{ versions: PromptVersion[] }>(`/api/agents/${key}/versions`),
+
+  revertPrompt: (key: string, versionNumber: number) =>
+    request<{ documents: PromptDocument[] }>(
+      `/api/agents/${key}/versions/${versionNumber}/revert`,
+      { method: 'POST' },
+    ),
 
   conversations: (search: string) =>
     request<{ conversations: ConversationSummary[] }>(

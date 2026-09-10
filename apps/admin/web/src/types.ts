@@ -54,3 +54,38 @@ export interface AdminUser {
   roleChangedBy: string | null;
   roleChangedAt: string | null;
 }
+
+export interface Agent {
+  id: string;
+  key: string;
+  name: string;
+}
+
+/** One document in the draft the manager edits. */
+export interface PromptDocument {
+  id: string;
+  title: string;
+  body: string;
+  position: number;
+  isActive: boolean;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+/** A frozen version — what the bot is actually serving. */
+export interface PromptVersion {
+  versionNumber: number;
+  publishedBy: string | null;
+  publishedAt: string;
+  characters: number;
+}
+
+export interface PromptState {
+  agent: Agent;
+  documents: PromptDocument[];
+  published: PromptVersion | null;
+  /** The draft assembled exactly as publish would store it. */
+  preview: string;
+  /** Whether publishing would produce a new version. Decided by the server. */
+  hasChanges: boolean;
+}

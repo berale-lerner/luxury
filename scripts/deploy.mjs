@@ -104,8 +104,43 @@ function quote(value) {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-export async function publishIfChanged(client, agentKey, root = ROOT) {
+/**
+ * Seeds the prompt from the repository — once, on a database that has none.
+ *
+ * It used to publish whenever the files differed from the latest version, and
+ * that was right while the files were the only way to publish. They are not:
+ * the admin interface edits documents and publishes versions, and a deploy
+ * that republished from the repository would silently revert whatever the
+ * manager had just published — no error, because from here it looked like the
+ * job being done.
+ *
+ * So the rule is now first-publish-only. A fresh database still comes up with
+ * an agent that can answer; after that the prompt belongs to the screen, and
+ * `prompts/` is a starting point rather than a source of truth.
+ */
+export async function publishIfUnpublished(client, agentKey, root = ROOT) {
   const dir = join(root, 'prompts', agentKey);
+
+  const agent = await client.query('SELECT id FROM public.agents WHERE key = $1', [agentKey]);
+  if (agent.rowCount === 0) {
+    console.warn(`no agent with key "${agentKey}"; skipping publish`);
+    return { published: false };
+  }
+  const agentId = agent.rows[0].id;
+
+  const current = await client.query(
+    `SELECT version_number FROM public.prompt_versions
+      WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1`,
+    [agentId],
+  );
+
+  if (current.rowCount > 0) {
+    console.log(
+      `prompt for "${agentKey}" is at version ${current.rows[0].version_number}; ` +
+        'published from the admin interface, not from the repository',
+    );
+    return { published: false, versionNumber: current.rows[0].version_number };
+  }
 
   let documents;
   let body;
@@ -116,25 +151,7 @@ export async function publishIfChanged(client, agentKey, root = ROOT) {
     return { published: false };
   }
 
-  const agent = await client.query('SELECT id FROM public.agents WHERE key = $1', [agentKey]);
-  if (agent.rowCount === 0) {
-    console.warn(`no agent with key "${agentKey}"; skipping publish`);
-    return { published: false };
-  }
-  const agentId = agent.rows[0].id;
-
-  const current = await client.query(
-    `SELECT version_number, body FROM public.prompt_versions
-      WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1`,
-    [agentId],
-  );
-
-  if (current.rows[0]?.body === body) {
-    console.log(`prompt for "${agentKey}" unchanged at version ${current.rows[0].version_number}`);
-    return { published: false, versionNumber: current.rows[0].version_number };
-  }
-
-  const versionNumber = (current.rows[0]?.version_number ?? 0) + 1;
+  const versionNumber = 1;
 
   await client.query('BEGIN');
   try {
@@ -178,7 +195,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       admin_user: process.env.ADMIN_DB_PASSWORD,
     });
     await seedAllowlist(owner, process.env.ADMIN_ALLOWLIST ?? '');
-    await publishIfChanged(owner, process.env.AGENT_KEY ?? 'guest');
+    await publishIfUnpublished(owner, process.env.AGENT_KEY ?? 'guest');
   } finally {
     await owner.end();
   }
