@@ -21,6 +21,7 @@ const app = buildApp({
   channels: [createTelegramChannel(config.TELEGRAM_WEBHOOK_SECRET)],
   reply: {
     prompts: new PromptCache(pool, config.AGENT_KEY),
+    timeZone: config.TIMEZONE,
     agent: { model: createModel(modelSelection(config), providerKeys(config)) },
     // Credentials are handed to the messaging package here. It never reads
     // them itself (CLAUDE.md, "Architecture").

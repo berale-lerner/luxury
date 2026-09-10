@@ -21,6 +21,21 @@ export interface ModelRequest {
   readonly systemPrompt: string;
   readonly turns: readonly ConversationTurn[];
   readonly maxTokens?: number;
+  /**
+   * Facts about this moment, written by the code — how long the guest has
+   * been waiting, what time it is where the business is.
+   *
+   * Separate from the system prompt for two reasons. It changes on every
+   * message, so folding it in would defeat the caching of a prefix that is
+   * otherwise identical for every guest. And it is not content: the published
+   * prompt is the owner's text, and this is the system telling the model
+   * something the owner cannot know in advance.
+   *
+   * Separate from the turns because it is not something anyone said. A note
+   * written into the conversation as a turn is a sentence the model may
+   * quote back, or answer.
+   */
+  readonly context?: string;
 }
 
 export type ModelResponse =

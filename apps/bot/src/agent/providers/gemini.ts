@@ -75,7 +75,13 @@ async function callGemini(
         parts: [{ text: turn.text }],
       })),
       config: {
-        systemInstruction: request.systemPrompt,
+        // One field rather than a list of blocks, so the context is appended
+        // instead of carried beside the prompt. The separation this vendor
+        // does not offer is the caller's to preserve, and it does — the
+        // context arrives already labelled as coming from the system.
+        systemInstruction: request.context
+          ? `${request.systemPrompt}\n\n${request.context}`
+          : request.systemPrompt,
         maxOutputTokens: request.maxTokens ?? 1024,
       },
     });

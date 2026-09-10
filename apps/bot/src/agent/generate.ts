@@ -108,6 +108,7 @@ export async function generateReply(
   systemPrompt: string,
   promptVersion: number,
   history: readonly ConversationTurn[],
+  context?: string,
 ): Promise<AgentReply> {
   const attempts = deps.attempts ?? DEFAULT_ATTEMPTS;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -117,6 +118,7 @@ export async function generateReply(
   const request = {
     systemPrompt,
     turns: history,
+    ...(context !== undefined ? { context } : {}),
     ...(deps.maxTokens !== undefined ? { maxTokens: deps.maxTokens } : {}),
   };
 

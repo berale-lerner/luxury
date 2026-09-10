@@ -12,18 +12,28 @@ export const HISTORY_LIMIT = 20;
  * the agent layer, so the agent takes plain turns and never learns what a
  * `direction` column is.
  */
+export interface LoadedHistory {
+  readonly turns: ConversationTurn[];
+  /**
+   * When the guest's most recent message arrived, or null if the thread has
+   * none. The reply is being written in answer to it, so how long ago it was
+   * is a fact about this moment worth telling the model.
+   */
+  readonly lastInboundAt: Date | null;
+}
+
 export async function loadHistory(
   pool: pg.Pool,
   conversationId: ConversationId,
   limit = HISTORY_LIMIT,
-): Promise<ConversationTurn[]> {
+): Promise<LoadedHistory> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     await client.query('SELECT set_config($1, $2, true)', ['app.conversation_id', conversationId]);
 
-    const result = await client.query<{ direction: string; body: string }>(
-      `SELECT direction, body
+    const result = await client.query<{ direction: string; body: string; created_at: Date }>(
+      `SELECT direction, body, created_at
          FROM public.messages
         WHERE conversation_id = $1
         ORDER BY created_at DESC
@@ -33,10 +43,19 @@ export async function loadHistory(
 
     await client.query('COMMIT');
 
-    return result.rows.reverse().map((row) => ({
-      role: row.direction === 'inbound' ? ('user' as const) : ('assistant' as const),
-      text: row.body,
-    }));
+    const rows = result.rows.reverse();
+
+    return {
+      turns: rows.map((row) => ({
+        role: row.direction === 'inbound' ? ('user' as const) : ('assistant' as const),
+        // The timestamp does not go in here. A time written into the text is
+        // a string the model can quote back to the guest, or mistake for
+        // something they wrote; it belongs in the request's context instead.
+        text: row.body,
+      })),
+      lastInboundAt:
+        [...rows].reverse().find((row) => row.direction === 'inbound')?.created_at ?? null,
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

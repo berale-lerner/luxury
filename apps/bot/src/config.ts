@@ -30,6 +30,12 @@ const schema = z.object({
   /** Which agent's published prompt this service serves. */
   AGENT_KEY: z.string().min(1).default('guest'),
   /**
+   * Where the apartments are, as an IANA name. The agent is told the local
+   * time so it can talk about "this evening" the way the guest and the owner
+   * both mean it — a server in Amsterdam otherwise reasons in its own hours.
+   */
+  TIMEZONE: z.string().min(1).default('Asia/Jerusalem'),
+  /**
    * Set by Railway. Present in a deployed environment and absent locally,
    * which is exactly the condition for registering the webhook: a laptop
    * has no public address to register.

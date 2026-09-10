@@ -43,6 +43,12 @@ export function createAnthropicModel(options: AnthropicModelOptions): ModelClien
               text: request.systemPrompt,
               cache_control: { type: 'ephemeral' },
             },
+            // A second block, and pointedly without cache_control: it differs
+            // on every message, and marking it would invalidate the cached
+            // prefix above on every message too.
+            ...(request.context
+              ? [{ type: 'text' as const, text: request.context }]
+              : []),
           ],
           output_config: { effort: options.effort ?? 'low' },
           messages: request.turns.map((turn) => ({ role: turn.role, content: turn.text })),

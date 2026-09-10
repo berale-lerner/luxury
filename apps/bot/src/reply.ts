@@ -1,7 +1,13 @@
 import type pg from 'pg';
 import type { ConversationId } from '@luxury/shared';
 import type { MessagingClient } from '@luxury/messaging';
-import { generateReply, AgentRefusedError, type AgentDeps, type PromptCache } from './agent/index.js';
+import {
+  describeMoment,
+  generateReply,
+  AgentRefusedError,
+  type AgentDeps,
+  type PromptCache,
+} from './agent/index.js';
 import { loadHistory, recordOutbound } from './conversations/index.js';
 
 /**
@@ -18,6 +24,8 @@ export interface ReplyDeps {
   readonly prompts: PromptCache;
   readonly agent: AgentDeps;
   readonly messaging: MessagingClient;
+  /** Where the business is, for stating the time as the owner would read it. */
+  readonly timeZone?: string;
   readonly log?: (event: Record<string, unknown>) => void;
 }
 
@@ -57,6 +65,14 @@ export async function replyToConversation(
 
   const history = await loadHistory(deps.pool, conversationId);
 
+  // Facts about this moment, kept out of both the published prompt and the
+  // turns. What to do with them — whether an hour's delay is worth
+  // acknowledging, and in what words — is a prompt document, not code.
+  const context = describeMoment({
+    lastInboundAt: history.lastInboundAt,
+    ...(deps.timeZone !== undefined ? { timeZone: deps.timeZone } : {}),
+  });
+
   // From here until there is something to send, the guest sees that the
   // conversation is alive. A normal answer takes a second or two; a failing
   // one takes as long as the timeout allows, and that is exactly the wait
@@ -65,7 +81,13 @@ export async function replyToConversation(
 
   let reply;
   try {
-    reply = await generateReply(deps.agent, prompt.body, prompt.versionNumber, history);
+    reply = await generateReply(
+      deps.agent,
+      prompt.body,
+      prompt.versionNumber,
+      history.turns,
+      context,
+    );
   } catch (error) {
     if (error instanceof AgentRefusedError) {
       log({ event: 'agent.refused', conversationId, category: error.category });

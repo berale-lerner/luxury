@@ -15,6 +15,7 @@
  */
 export * from './model.js';
 export * from './generate.js';
+export * from './context.js';
 export * from './prompt.js';
 export * from './registry.js';
 export * from './providers/anthropic.js';
