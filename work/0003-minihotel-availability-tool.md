@@ -27,6 +27,19 @@ fact about how full the hotel is, and it does not belong in a guest's chat
 window even indirectly, because whatever the tool returns can end up quoted
 back by the model.
 
+## A prerequisite, now met
+
+The model resolves "this weekend" into the dates this tool receives, and until
+[0009](0009-agent-unavailable-notice.md) it had no way to: a model has no
+clock, and neither provider injects one through the API. It would have inferred
+a date from its training data — plausible, confidently stated, and very likely
+in the wrong year.
+
+The agent is now told the current local time on every call, so the translation
+has something to stand on. Worth remembering when the validation is written:
+checking that a date parses is not checking that it is the date the guest
+meant, and a wrong year passes both.
+
 ## Credentials
 
 MiniHotel's credentials are monolithic: the same key that reads availability
