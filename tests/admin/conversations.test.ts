@@ -28,6 +28,7 @@ const messaging = {
     sent.push({ conversationId: id, text });
     return { channel: 'telegram' as const, providerMessageId: 'stub-1' };
   },
+  async indicateTyping() {},
 };
 
 function app() {

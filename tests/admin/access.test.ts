@@ -28,6 +28,7 @@ const messaging = {
   async sendToConversation() {
     return { channel: 'telegram' as const, providerMessageId: 'stub' };
   },
+  async indicateTyping() {},
 };
 
 function appFor(email: string | null) {

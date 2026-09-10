@@ -1,11 +1,16 @@
 /**
- * Answering after a failed attempt.
+ * Answering a message that was stored but never answered.
  *
  * The bug this covers was found in production: the reply was attempted only
- * when a delivery stored a new row, so a transient model failure left the
- * guest's message stored and permanently unanswered. The provider's retry
- * stored nothing, the code skipped the reply, and the 200 told the provider
- * to stop trying.
+ * when a delivery stored a new row, so a message that arrived once and was
+ * not answered stayed unanswered forever — a redelivery stored nothing, the
+ * code took that as "already handled", and the 200 told the provider to stop.
+ *
+ * The model's own failures no longer reach this path; they are retried inside
+ * the request and end in a notice to the guest (agent-unavailable.test.ts).
+ * What is still true, and still worth holding, is the rule underneath: what
+ * decides whether to answer is whether the conversation is waiting for one,
+ * never whether this particular delivery wrote a row.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import pg from 'pg';
@@ -74,6 +79,7 @@ function appWith(model: ModelClient, sent: string[]) {
           sent.push(text);
           return { channel: 'telegram', providerMessageId: 'stub' };
         },
+        async indicateTyping() {},
       },
     },
   });
@@ -91,25 +97,42 @@ function deliver(app: ReturnType<typeof buildApp>, chatId: number, updateId: num
   });
 }
 
-describe('a redelivery after the model failed', () => {
-  it('answers on the retry instead of dropping the message', async () => {
+/** The intake path alone: it stores the message and answers nothing. */
+function intakeOnly() {
+  return buildApp({
+    pool: bot,
+    channels: [createTelegramChannel(SECRET)],
+    logLevel: 'silent',
+  });
+}
+
+describe('a message stored by a delivery that did not answer it', () => {
+  it('is answered on the next delivery, not treated as handled', async () => {
     const sent: string[] = [];
-    const flaky = flakyModel(1, 'Yes, we do.');
-    const app = appWith(flaky.model, sent);
-    await app.ready();
 
+    // A delivery that stores and does not answer — the state the bug left
+    // behind, produced here without pretending a model failed.
+    const intake = intakeOnly();
+    await intake.ready();
     try {
-      // First delivery: the model is down, so the provider is asked to retry.
-      const first = await deliver(app, 995551, 900001);
-      expect(first.statusCode).toBe(500);
-      expect(sent).toEqual([]);
+      expect((await deliver(intake, 995551, 900001)).statusCode).toBe(200);
+    } finally {
+      await intake.close();
+    }
 
-      // The retry stores nothing — the row already exists — but the
-      // conversation is still waiting on an answer.
+    const conversation = await admin.query<{ id: string }>(
+      `SELECT id FROM public.conversations WHERE channel_chat_id = '995551'`,
+    );
+    expect(await awaitsReply(bot, conversation.rows[0]!.id as never)).toBe(true);
+
+    const app = appWith(flakyModel(0, 'Yes, we do.').model, sent);
+    await app.ready();
+    try {
+      // Stores nothing — the row already exists — and answers anyway,
+      // because the conversation is still waiting.
       const second = await deliver(app, 995551, 900001);
       expect(second.statusCode).toBe(200);
       expect(sent).toEqual(['Yes, we do.']);
-      expect(flaky.attempts()).toBe(2);
     } finally {
       await app.close();
     }
@@ -133,18 +156,23 @@ describe('a redelivery after the model failed', () => {
 
 describe('knowing whether a reply is owed', () => {
   it('is true after an inbound message and false once answered', async () => {
-    const sent: string[] = [];
-    const app = appWith(flakyModel(1, 'Answered.').model, sent);
-    await app.ready();
-
+    const intake = intakeOnly();
+    await intake.ready();
     try {
-      await deliver(app, 995553, 900003);
-      const conversation = await admin.query<{ id: string }>(
-        `SELECT id FROM public.conversations WHERE channel_chat_id = '995553'`,
-      );
-      const id = conversation.rows[0]!.id as never;
+      await deliver(intake, 995553, 900003);
+    } finally {
+      await intake.close();
+    }
 
-      expect(await awaitsReply(bot, id)).toBe(true);
+    const conversation = await admin.query<{ id: string }>(
+      `SELECT id FROM public.conversations WHERE channel_chat_id = '995553'`,
+    );
+    const id = conversation.rows[0]!.id as never;
+    expect(await awaitsReply(bot, id)).toBe(true);
+
+    const app = appWith(flakyModel(0, 'Answered.').model, []);
+    await app.ready();
+    try {
       await deliver(app, 995553, 900003);
       expect(await awaitsReply(bot, id)).toBe(false);
     } finally {

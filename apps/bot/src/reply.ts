@@ -21,6 +21,15 @@ export interface ReplyDeps {
   readonly log?: (event: Record<string, unknown>) => void;
 }
 
+/**
+ * How often the "typing…" hint is renewed.
+ *
+ * Telegram's lasts about five seconds and there is no way to extend it, so
+ * anything longer than a very fast answer needs repeating. Slightly under the
+ * expiry, so the guest never sees it flicker off and back on.
+ */
+const TYPING_INTERVAL_MS = 4_500;
+
 export type ReplyOutcome =
   | { status: 'sent'; promptVersion: number }
   | { status: 'skipped'; reason: 'agent_muted' | 'no_published_prompt' | 'refused' };
@@ -48,6 +57,12 @@ export async function replyToConversation(
 
   const history = await loadHistory(deps.pool, conversationId);
 
+  // From here until there is something to send, the guest sees that the
+  // conversation is alive. A normal answer takes a second or two; a failing
+  // one takes as long as the timeout allows, and that is exactly the wait
+  // that reads as being ignored.
+  const typing = startTyping(deps.messaging, conversationId);
+
   let reply;
   try {
     reply = await generateReply(deps.agent, prompt.body, prompt.versionNumber, history);
@@ -57,6 +72,11 @@ export async function replyToConversation(
       return { status: 'skipped', reason: 'refused' };
     }
     throw error;
+  } finally {
+    // On every path, including the throw. A live interval would go on
+    // telling the guest that an answer is coming after the request that
+    // owned it has ended.
+    typing.stop();
   }
 
   // The recipient comes from the conversation row, resolved inside the
@@ -75,4 +95,27 @@ export async function replyToConversation(
   });
 
   return { status: 'sent', promptVersion: reply.promptVersion };
+}
+
+/**
+ * Keeps the "typing…" hint alive until told to stop.
+ *
+ * Fires immediately rather than waiting out the first interval — the point is
+ * the moment right after the guest presses send. Every call is best effort;
+ * the messaging layer swallows its own failures, so nothing here can reject.
+ */
+function startTyping(
+  messaging: MessagingClient,
+  conversationId: ConversationId,
+): { stop: () => void } {
+  void messaging.indicateTyping(conversationId);
+  const timer = setInterval(() => {
+    void messaging.indicateTyping(conversationId);
+  }, TYPING_INTERVAL_MS);
+  // Not a reason to keep the process alive at shutdown.
+  timer.unref?.();
+
+  return {
+    stop: () => clearInterval(timer),
+  };
 }

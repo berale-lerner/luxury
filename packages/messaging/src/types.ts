@@ -23,6 +23,14 @@ export interface MessagingCredentials {
 export interface ChannelSender {
   readonly channel: Channel;
   send(destination: { chatId: string }, text: string): Promise<SendResult>;
+  /**
+   * Shows the guest that something is happening — Telegram's "typing…".
+   *
+   * Optional, because it is a courtesy rather than a capability: a platform
+   * without one simply does not offer it, and the caller shows nothing rather
+   * than branching on which platform it is talking to.
+   */
+  indicateTyping?(destination: { chatId: string }): Promise<void>;
 }
 
 /**
@@ -44,4 +52,10 @@ export interface SendResult {
 export interface MessagingClient {
   /** The only way to send. No overload accepts an address. */
   sendToConversation(conversationId: ConversationId, text: string): Promise<SendResult>;
+  /**
+   * Best effort, and deliberately so: it resolves whether or not the platform
+   * accepted it. A failed courtesy must never take down a reply that would
+   * otherwise have worked, so there is nothing here for a caller to handle.
+   */
+  indicateTyping(conversationId: ConversationId): Promise<void>;
 }

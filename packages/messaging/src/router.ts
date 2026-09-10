@@ -54,6 +54,22 @@ export function createMessagingRouter(options: RouterOptions): MessagingClient {
 
       return result;
     },
+
+    /**
+     * Best effort. Every failure here is swallowed, including a conversation
+     * on a platform this service cannot send to and a platform that has no
+     * such notion: the caller is about to do the thing that matters, and a
+     * courtesy that can break it is worse than no courtesy at all.
+     */
+    async indicateTyping(conversationId: ConversationId): Promise<void> {
+      try {
+        const destination = await options.resolver.resolve(conversationId);
+        const sender = byChannel.get(destination.channel);
+        await sender?.indicateTyping?.({ chatId: destination.chatId });
+      } catch (error) {
+        log({ event: 'messaging.typing_failed', conversationId, err: error });
+      }
+    },
   };
 }
 

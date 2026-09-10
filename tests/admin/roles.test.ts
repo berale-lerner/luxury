@@ -35,6 +35,7 @@ const messaging = {
   async sendToConversation() {
     return { channel: 'telegram' as const, providerMessageId: 'stub' };
   },
+  async indicateTyping() {},
 };
 
 /** Runs one request against the real app as one of the three people. */

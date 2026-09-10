@@ -2,38 +2,21 @@
 --
 -- A model provider returning 503 is not a bug in this system and not
 -- something it can fix. What it can do is stop leaving the guest in silence:
--- the platform redelivers the same update after a failure, so counting those
--- deliveries gives a place to say "not right now, try later" and stop.
+-- after the reply has been attempted and failed, the code says so.
 --
--- Three pieces:
---   messages.delivery_attempts   how many times this update arrived
---   public.message_templates     the words, so they are not in the code
---   sender 'system'              so the thread does not credit the agent
+-- Two pieces, and deliberately no third: nothing here counts anything. The
+-- attempts happen inside one request, so the process remembers them by
+-- itself and the database has no part in it.
+--
+--   public.message_templates   the words, so they are not in the code
+--   sender 'system'            so the thread does not credit the agent
 
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- Counting deliveries
--- ---------------------------------------------------------------------------
--- Incremented by the deduplicating insert: the first delivery writes the row,
--- and each redelivery bumps this instead of writing a second one.
-ALTER TABLE public.messages
-  ADD COLUMN delivery_attempts integer NOT NULL DEFAULT 1;
-
-COMMENT ON COLUMN public.messages.delivery_attempts IS
-  'How many times the provider delivered this inbound update. 1 for anything the provider delivered once, and for outbound rows.';
-
--- Column-level, like every other grant to bot_user. It may raise the counter
--- on a row it already wrote and nothing else — not the body, not the sender,
--- not the direction.
-GRANT SELECT (delivery_attempts) ON public.messages TO bot_user;
-GRANT INSERT (delivery_attempts) ON public.messages TO bot_user;
-GRANT UPDATE (delivery_attempts) ON public.messages TO bot_user;
-
--- ---------------------------------------------------------------------------
 -- sender 'system'
 -- ---------------------------------------------------------------------------
--- The fallback is written by code, not by the model. Recording it as 'agent'
+-- The notice is written by code, not by the model. Recording it as 'agent'
 -- would tell the manager that the agent said something it never said, and
 -- would put it in the history the model is replayed — so a failure to answer
 -- would become part of how the agent believes it talks.
@@ -74,7 +57,7 @@ CREATE POLICY bot_select ON public.message_templates
 INSERT INTO public.message_templates (key, body, description, updated_by) VALUES (
   'agent_unavailable',
   E'מצטערים, יש כרגע תקלה זמנית ולא הצלחנו לענות. נסו שוב בעוד כמה דקות — ההודעה שלכם נשמרה.\n\nSorry — we are having a temporary problem and could not reply. Please try again in a few minutes; your message has been saved.',
-  'Sent to the guest when the agent failed to answer after several delivery attempts.',
+  'Sent to the guest when the agent could not answer after its retries.',
   'migration'
 );
 

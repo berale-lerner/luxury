@@ -2,18 +2,6 @@ import type pg from 'pg';
 import type { ConversationId } from '@luxury/shared';
 import type { MessagingClient } from '@luxury/messaging';
 
-/**
- * How many deliveries of the same guest message may fail before the guest is
- * told so.
- *
- * Three, because the platform's own retries are the mechanism: answering is
- * retried by Telegram redelivering the update, not by a loop inside the
- * request. Two failures could be one bad minute at a provider; by the third
- * the guest has been waiting without a word and silence has stopped being
- * the polite option.
- */
-export const MAX_DELIVERY_ATTEMPTS = 3;
-
 /** The template the words come from. Editable in the database, not here. */
 const TEMPLATE_KEY = 'agent_unavailable';
 
@@ -25,6 +13,10 @@ export interface FallbackDeps {
 
 /**
  * Tells the guest that no answer is coming this time.
+ *
+ * Sent once the agent's own retries are spent — see generateReply. By then
+ * the provider has been asked twice and the guest has been watching a typing
+ * indicator; a third silence is not better than a sentence.
  *
  * Not a proactively-initiated message: it is a reply, on the channel the
  * guest wrote on, to a message they just sent — the case CLAUDE.md describes

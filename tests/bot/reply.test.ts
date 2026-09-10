@@ -27,13 +27,17 @@ let agentId: string;
 /** Records what was sent, so assertions can be about the destination too. */
 function fakeMessaging() {
   const sent: Array<{ conversationId: string; text: string }> = [];
+  const typing: string[] = [];
   const client: MessagingClient = {
     async sendToConversation(conversationId, text) {
       sent.push({ conversationId, text });
       return { channel: 'telegram', providerMessageId: `fake-${sent.length}` };
     },
+    async indicateTyping(conversationId) {
+      typing.push(conversationId);
+    },
   };
-  return { client, sent };
+  return { client, sent, typing };
 }
 
 /**

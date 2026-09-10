@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import type pg from 'pg';
 import {
   awaitsReply,
-  MAX_DELIVERY_ATTEMPTS,
   recordInboundMessage,
   sendUnavailableNotice,
 } from '../conversations/index.js';
@@ -38,12 +37,15 @@ export interface WebhookDeps {
  *
  * Failing to *answer* is the third case, and it is not the same as failing to
  * store. The message is safely recorded; what broke is downstream — a model
- * provider returning 503, most likely, which this service cannot fix and
- * cannot outwait. Retrying is still right, because these clear up. But the
- * retries are finite: after MAX_DELIVERY_ATTEMPTS deliveries of the same
- * update the guest is told plainly that no answer is coming, and the delivery
- * is accepted so the platform stops. The alternative is a guest watching
- * nothing happen until the provider gives up quietly.
+ * provider returning 503, most likely, which this service cannot fix. The
+ * retries for that live in the agent layer, inside this request, bounded so
+ * they cannot spend the platform's whole delivery budget. By the time an
+ * error reaches here they are already spent, so asking the platform to
+ * redeliver would only buy another round of the same failure a minute later,
+ * with the guest still watching nothing happen.
+ *
+ * So this says so, and accepts the delivery. The guest gets a sentence
+ * instead of silence, and the message is on record for a manager to pick up.
  */
 export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps): void {
   for (const channel of deps.channels) {
@@ -78,7 +80,6 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
             conversationId: recorded.conversationId,
             updateId: inbound.updateId,
             stored: recorded.stored,
-            deliveryAttempts: recorded.deliveryAttempts,
             agentMuted: recorded.agentMuted,
           },
           'inbound message recorded',
@@ -117,16 +118,12 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
             event: 'channel.webhook.failed',
             channel: channel.name,
             updateId: inbound.updateId,
-            deliveryAttempts: recorded.deliveryAttempts,
             err: error,
           },
           'failed to answer inbound message',
         );
 
-        if (deps.reply && recorded.deliveryAttempts >= MAX_DELIVERY_ATTEMPTS) {
-          // Last delivery. Say so, then accept it: another retry would only
-          // reach the same broken thing, and the guest has waited long enough
-          // to deserve a sentence rather than more silence.
+        if (deps.reply) {
           await sendUnavailableNotice(
             {
               pool: deps.pool,
@@ -135,11 +132,9 @@ export function registerChannelWebhooks(app: FastifyInstance, deps: WebhookDeps)
             },
             recorded.conversationId,
           );
-          return reply.code(200).send({ ok: true });
         }
 
-        // Transient: ask the platform to send it again rather than lose it.
-        return reply.code(500).send({ error: 'internal' });
+        return reply.code(200).send({ ok: true });
       }
 
       return reply.code(200).send({ ok: true });

@@ -41,10 +41,6 @@ const SELECTABLE_COLUMNS: Record<string, string[]> = {
     'body',
     'created_at',
     'provider_update_id',
-    // How many times the provider delivered this update (migration 0012).
-    // The only column bot_user may UPDATE, and only on rows of the
-    // conversation the request has claimed (migration 0013).
-    'delivery_attempts',
   ],
   requests: ['id', 'conversation_id', 'guest_id', 'kind', 'status', 'created_at'],
 };
@@ -170,18 +166,15 @@ describe('bot_user column grants', () => {
     });
   });
 
-  it('may change only the delivery counter on a message it already wrote', async () => {
-    // The counter exists so a redelivery can be recognised as the third
-    // attempt rather than the first. Everything that makes the message what
-    // it is stays out of reach: a compromised bot process cannot rewrite the
-    // guest's words, move a message to another conversation, or turn an
-    // inbound row into an outbound one.
+  it('cannot change a message at all, once written', async () => {
+    // Nothing about a stored message is editable by the bot: not the body,
+    // not the sender, not the conversation it belongs to. A compromised bot
+    // process can add to the record and never rewrite it.
     const granted = await bot.query<{ column_name: string }>(
       `SELECT column_name FROM information_schema.column_privileges
         WHERE grantee = 'bot_user' AND table_schema = 'public'
-          AND table_name = 'messages' AND privilege_type = 'UPDATE'
-        ORDER BY column_name`,
+          AND table_name = 'messages' AND privilege_type = 'UPDATE'`,
     );
-    expect(granted.rows.map((row) => row.column_name)).toEqual(['delivery_attempts']);
+    expect(granted.rows).toEqual([]);
   });
 });

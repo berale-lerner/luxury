@@ -201,8 +201,12 @@ describe('the send router', () => {
       senders: [recordingSender('telegram').sender],
     });
 
-    // The guarantee is structural: one method, and it takes a conversation.
-    expect(Object.keys(router)).toEqual(['sendToConversation']);
+    // The guarantee is structural: every method the router exposes is keyed
+    // on a conversation, so there is no overload anywhere that could be
+    // handed an address. Listing them explicitly means a method added later
+    // has to be looked at rather than absorbed.
+    expect(Object.keys(router).sort()).toEqual(['indicateTyping', 'sendToConversation']);
     expect(router.sendToConversation).toHaveLength(2);
+    expect(router.indicateTyping).toHaveLength(1);
   });
 });

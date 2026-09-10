@@ -62,6 +62,32 @@ export function createTelegramSender(options: TelegramSenderOptions): ChannelSen
         clearTimeout(timer);
       }
     },
+
+    /**
+     * Telegram's "typing…".
+     *
+     * It expires after about five seconds, or the moment a message is sent —
+     * there is no way to stop it early and no need for one, because the reply
+     * itself clears it. A caller that expects to wait longer than that sends
+     * this again.
+     */
+    async indicateTyping(destination): Promise<void> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        await fetch(`${baseUrl}/bot${options.credentials.telegramBotToken}/sendChatAction`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ chat_id: destination.chatId, action: 'typing' }),
+          signal: controller.signal,
+        });
+        // The response is not checked. There is nothing to do about a
+        // rejected chat action, and the router swallows the throw anyway.
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   };
 }
 

@@ -29,6 +29,7 @@ const messaging = {
   async sendToConversation() {
     return { channel: 'telegram' as const, providerMessageId: 'stub' };
   },
+  async indicateTyping() {},
 };
 
 beforeAll(async () => {
