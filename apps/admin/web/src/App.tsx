@@ -4,9 +4,8 @@ import { Nav } from './shell/Nav';
 import { SignIn, NotAllowed } from './shell/SignIn';
 import { matchRoute, navigate, usePath } from './shell/router';
 import { HOME, permits, routes } from './shell/routes';
+import { screenFor, type Access } from './shell/access';
 import type { Me } from './types';
-
-type Access = 'checking' | 'ok' | 'signed-out' | 'not-allowed';
 
 /**
  * The application shell.
@@ -47,16 +46,21 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  if (access === 'checking' || !admin) return <div className="empty">טוען…</div>;
-  if (access === 'signed-out') return <SignIn />;
-  if (access === 'not-allowed') return <NotAllowed />;
+  // The order lives in screenFor, with a test, because it was wrong here once:
+  // a signed-out visitor has no identity, and checking for one first left
+  // them on "loading" forever.
+  const screen = screenFor(access, admin);
+  if (screen.kind === 'loading') return <div className="empty">טוען…</div>;
+  if (screen.kind === 'sign-in') return <SignIn />;
+  if (screen.kind === 'not-allowed') return <NotAllowed />;
+  const signedIn = screen.admin;
 
   const match = matchRoute(routes, path);
 
   // A page the role may not use. Rendered as a refusal rather than hidden
   // behind a redirect, so a bookmarked link says why it stopped working —
   // and the API behind the page refuses it regardless of this screen.
-  if (match && !permits(match.route, admin.role)) {
+  if (match && !permits(match.route, signedIn.role)) {
     return (
       <div className="empty">
         <div>
@@ -88,8 +92,8 @@ export function App() {
 
   return (
     <div className="app" data-nav-on-narrow={match.route.navOnNarrow !== false}>
-      <Nav current={match.route.section} admin={admin} />
-      <main className="app-main">{match.route.render(match.params, admin)}</main>
+      <Nav current={match.route.section} admin={signedIn} />
+      <main className="app-main">{match.route.render(match.params, signedIn)}</main>
     </div>
   );
 }
