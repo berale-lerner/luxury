@@ -1,200 +1,300 @@
-# DEPLOY.md — פריסה ב-Railway
+# DEPLOY.md — Deploying on Railway
 
-מסמך תפעולי. הכללים שמאחורי ההחלטות כאן נמצאים ב-[CLAUDE.md](CLAUDE.md) (Operations) וב-[DESIGN.md](DESIGN.md) (תשתית).
+An operational document. The rules behind these decisions are in
+[CLAUDE.md](CLAUDE.md) (Operations) and [DESIGN.md](DESIGN.md) (infrastructure).
 
-**הפרויקט מוגדר כקוד ב-[.railway/railway.ts](.railway/railway.ts).** אותו היגיון כמו המיגרציות: תשתית שמוגדרת בקונסולה היא תשתית שאף אחד לא יכול לסקור, והיא נפרדת בשקט ממה שכתוב בריפו. `railway config plan` מראה את ההפרש, `railway config apply` מחיל אותו.
-
----
-
-## ⚠️ הכלל שהכי קל להפר ב-Railway
-
-ל-Railway יש **Shared Variables ברמת הפרויקט**. הם נוחים, והם סותרים ישירות כלל ב-CLAUDE.md.
-
-**כל משתנה מוגדר ברמת השירות בלבד.** אם `TELEGRAM_BOT_TOKEN` מוגדר פעם אחת ברמת הפרויקט, שני השירותים מקבלים אותו — וההפרדה שכל המבנה קיים בשבילה נעלמת בקליק אחד. לכן הטוקן מופיע פעמיים בקובץ ה-IaC, אחת בכל שירות, ולא כמשתנה משותף.
-
-משתני הפניה (`${{Postgres.RAILWAY_PRIVATE_DOMAIN}}`) הם בסדר — הם מוגדרים על השירות הצורך.
+> **Read this first: `.railway/railway.ts` does not describe production.**
+> It was written as the project's definition-as-code, but it has never been
+> successfully applied, and production has since been configured in the
+> dashboard and drifted from it ([work/0002](work/0002-apply-railway-config.md);
+> the drift is listed in [work/0012](work/0012-staging-environment.md)).
+> **Do not run `railway config apply`** until the file is reconciled. It would
+> try to make production match a file that is out of date, and may propose
+> changing or deleting what is running.
 
 ---
 
-## מבנה: ארבעה שירותים בכל סביבה
+## ⚠️ The Railway rule that is easiest to break
 
-| שירות | תפקיד ב-DB | חשוף לאינטרנט |
+Railway has **Shared Variables at the project and environment level**. They are
+convenient, and they directly contradict a rule in CLAUDE.md.
+
+**Every variable is defined at the service level only.** If
+`TELEGRAM_BOT_TOKEN` is defined once as a shared variable, both services
+receive it — and the separation this whole structure exists for disappears in
+one click. That is why the token is set twice, once on each service.
+
+Reference variables (`${{Postgres.RAILWAY_PRIVATE_DOMAIN}}`) are fine: they are
+defined on the service that consumes them.
+
+---
+
+## Structure: four services in each environment
+
+| Service | DB role | Exposed to the internet |
 |---|---|---|
-| `Postgres` | — | לא |
-| `migrator` | בעלים | לא |
-| `bot` | `bot_user` | **כן** — webhook של טלגרם |
-| `admin` | `admin_user` | כן, מאחורי auth + allowlist |
+| `Postgres` | — | No |
+| `migrator` | Owner | No |
+| `bot` | `bot_user` | **Yes** — Telegram's webhook |
+| `admin` | `admin_user` | Yes, behind auth and the allowlist |
 
-### כתובות production
+### Production URLs
 
-| שירות | כתובת |
+| Service | URL |
 |---|---|
 | `admin` | https://admin-production-3e57.up.railway.app |
 | `bot` | https://bot-production-9347.up.railway.app |
 
-הכתובות נוצרו על ידי Railway ומופיעות גם כ-`PUBLIC_URL` על שירות ה-`admin` — הכתובת שם היא גם מה שמרכיב את ה-OAuth callback (`<PUBLIC_URL>/api/auth/callback/google`) ואת תחום העוגייה, אז שינוי שלה דורש עדכון מקביל אצל Google.
+Railway generated these, and the admin one also appears as `PUBLIC_URL` on the
+`admin` service. That value builds the OAuth callback
+(`<PUBLIC_URL>/api/auth/callback/google`) and the cookie scope, so changing it
+requires a matching change in Google Cloud.
 
-הן כתובות ולא סודות, ולכן מקומן כאן: כתובת שקיימת רק בקונסולה היא כתובת שמחפשים מחדש בכל פעם.
+They are addresses, not secrets, which is why they live here: an address that
+exists only in the console is one you look up again every time.
 
-### כתובות staging
+### Staging URLs
 
-| שירות | כתובת |
+| Service | URL |
 |---|---|
 | `admin` | https://admin-staging-9fe9.up.railway.app |
 | `bot` | https://bot-staging-2a5a.up.railway.app |
 
-שירותי staging עוקבים אחרי ענף `staging`, לא אחרי `main`. פוש ל-`main` לא מגיע ל-staging, ולכן בודקים שם בפוש ל-`staging`.
+Staging's services track the **`staging`** branch, not `main`. A push to `main`
+does not reach staging; test there by pushing to `staging`.
 
-### ⚠️ לא לשכפל סביבה מפרודקשן כמו שהיא
+### ⚠️ Never duplicate production as it is
 
-"Duplicate environment" ב-Railway מעתיק את **כל המשתנים** ואת ענף המקור. הבוט קורא ל-`setWebhook` בכל עלייה, אז בוט בסביבה המשוכפלת, עם הטוקן של פרודקשן, **משתלט על ה-webhook של הבוט האמיתי**. הודעות האורחים עוברות לסביבה החדשה, והבוט בפרודקשן שותק בלי שום שגיאה. זה קרה ב-15 בספטמבר 2026 ([work/0012](work/0012-staging-environment.md)).
+Railway's "Duplicate environment" copies **every variable** and each service's
+source branch. The bot calls `setWebhook` on every boot, so a bot in the
+duplicated environment holding production's token **takes over the real bot's
+webhook**. Guests' messages go to the new environment, and the production bot
+goes quiet with no error anywhere. This happened on 2026-09-15
+([work/0012](work/0012-staging-environment.md)).
 
-אם בכל זאת משכפלים, **לפני העלייה הראשונה**:
+If you duplicate anyway, **before the first deploy**:
 
-- `TELEGRAM_BOT_TOKEN` של בוט נפרד מ-BotFather, גם ב-`bot` וגם ב-`admin`
-- ענף המקור של כל שירות מוחלף לענף של הסביבה
-- `PUBLIC_URL`, `AUTH_SECRET`, סיסמאות התפקידים ו-`GEMINI_API_KEY` מוחלפים. כולם מועתקים מפרודקשן
-- `DATABASE_URL` בצורת הפניה (`${{BOT_DB_PASSWORD}}`), לא עם סיסמה כתובה בתוכו
+- Set `TELEGRAM_BOT_TOKEN` to a separate bot from BotFather, on both `bot` and
+  `admin`
+- Change every service's source branch to the environment's own branch
+- Replace `PUBLIC_URL`, `AUTH_SECRET`, both role passwords and
+  `GEMINI_API_KEY`. All of them are copied from production
+- Use the reference form of `DATABASE_URL` (`${{BOT_DB_PASSWORD}}`), not one
+  with a password written into it
 
-**כשמחליפים סיסמאות, מעלים קודם את `migrator` ומחכים שיסיים.** הוא מתקין תלויות כדקה לפני שהוא מחיל את הסיסמאות. `admin` שעולה באותו זמן מריץ את בדיקת הסכמה של Better Auth עם הסיסמה החדשה, בזמן שהתפקיד עוד מקבל רק את הישנה, ומתעד שגיאה חד-פעמית.
+### Railway from your own machine
 
-### Railway מהמחשב המקומי
+- The CLI remembers a linked environment, **and for everyone who has linked so
+  far that is `production`.** Any command without `--environment` runs against
+  production — including `redeploy`, `scale` and `variable set`. Pass
+  `--environment` explicitly on every command
+- `railway variable list --kv` and `railway environment config --json` return
+  **raw secret values.** Never print them, and never paste them into a chat
+- **A push to `main` deploys production.** CI runs alongside it and does not
+  block it ([work/0001](work/0001-ci-as-a-deploy-gate.md)), so test on
+  `staging` first
 
-- ה-CLI זוכר סביבה מקושרת, **ואצל כל מי שהתחבר עד עכשיו זו `production`.** כל פקודה בלי `--environment` רצה על פרודקשן, כולל `redeploy`, `scale` ו-`variable set`. מעבירים `--environment` במפורש בכל פקודה
-- `railway variable list --kv` ו-`railway environment config --json` מחזירים **ערכים גולמיים של סודות.** לא מדפיסים אותם ולא מדביקים אותם בצ'אט
-- **פוש ל-`main` מעלה את פרודקשן.** ה-CI רץ במקביל ולא חוסם ([work/0001](work/0001-ci-as-a-deploy-gate.md)), ולכן בודקים קודם ב-`staging`
+### Settings that exist only in Railway
 
-### הגדרות שקיימות רק ב-Railway
-
-נכון ל-15 בספטמבר 2026. הן משתנות בדשבורד ולא בגיט, אז כדאי לוודא לפני שמסתמכים עליהן.
+As of 2026-09-15. They are changed in the dashboard, not in git, so check
+before relying on them.
 
 | | production | staging |
 |---|---|---|
-| בוט טלגרם | `Pedrotest7bot` | `pedro_suites_stage_bot` |
+| Telegram bot | `Pedrotest7bot` | `pedro_suites_stage_bot` |
 | `MODEL_PROVIDER` | `gemini` | `gemini` |
 | `MODEL_NAME` | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` |
 
-- **אין `ANTHROPIC_API_KEY` בפרודקשן**, אז מעבר אוטומטי לספק שני עוד לא אפשרי ([work/0011](work/0011-model-retry-and-failover.md))
-- **ה-free tier של Gemini מוגבל לכל דגם בנפרד, והמכסה קטנה.** `gemini-3.8-flash` נעצר אחרי 20 בקשות עם 429 ב-10 בספטמבר, וההמתנה של כ-55 שניות שהשגיאה הציעה לא הייתה החלון האמיתי
+- **There is no `ANTHROPIC_API_KEY` in production**, so failing over to a
+  second provider is not yet possible
+  ([work/0011](work/0011-model-retry-and-failover.md))
+- **Gemini's free tier is limited per model, and the quota is small.**
+  `gemini-3.8-flash` stopped after 20 requests with a 429 on 2026-09-10, and
+  the roughly 55-second wait the error suggested was not the real window
 
-### למה `migrator` הוא שירות נפרד
+### Why `migrator` is a separate service
 
-המיגרציות רצות כתפקיד בעלים — התפקיד היחיד שרשאי ליצור roles, GRANTs ו-RLS. אילו `apps/admin` היה מריץ אותן ב-pre-deploy, השירות שממילא מגיע לכל ה-schemas היה מחזיק גם את פרטי הבעלים.
+Migrations run as the owner role — the only role allowed to create roles,
+GRANTs and RLS policies. If `apps/admin` ran them in a pre-deploy step, the
+service that already reaches every schema would also hold the owner's
+credentials.
 
-שירות נפרד שרץ ויוצא (`restartPolicyType: NEVER`) פותר גם כלל שני: **פרטי פרודקשן לא נוחתים על מחשב מקומי** — אף אחד לא מריץ מיגרציות מהלפטופ. הרצה חוזרת אינה מסוכנת: קובץ שכבר רץ מסונן דרך `migrations.applied`.
+A separate service that runs and exits (`restartPolicyType: NEVER`) also
+satisfies a second rule: **production credentials never land on a local
+machine** — nobody runs migrations from a laptop. Re-running is safe: a file
+that has already run is skipped through `migrations.applied`.
+
+On every deploy it runs `node scripts/deploy.mjs`, which does three things in
+order: applies pending migrations, sets the role passwords from its own
+variables, and adds the addresses in `ADMIN_ALLOWLIST` to the allowlist.
 
 ---
 
-## הקמה
+## Setting up an environment
 
-**staging לפני production.** אותם צעדים בשתי סביבות, כל אחת עם ה-Postgres והמשתנים שלה.
+**Staging before production.** The same steps in both environments, each with
+its own Postgres and its own variables.
 
-### 1. התחברות וקישור — בדפדפן, פעם אחת
+### 1. Log in and link — in the browser, once
 
 ```bash
 railway login
 ```
 
-צריך גם ש-Railway תקבל גישה לריפו ב-GitHub (התקנת ה-GitHub App על `berale-lerner/luxury`) — גם זה אישור חד-פעמי בדפדפן.
-
-פרויקט חדש:
-
-```bash
-railway init --name luxury
-```
-
-פרויקט קיים:
+Railway also needs access to the repository on GitHub (the GitHub App
+installed on `berale-lerner/luxury`) — another one-time approval in the
+browser.
 
 ```bash
 railway link
 ```
 
-### 2. תוכנית לפני החלה
+Choose the environment deliberately when linking. Whatever you pick becomes
+the default for every command that omits `--environment`.
+
+### 2. Services — in the dashboard
+
+In the target environment:
+
+1. **Postgres:** New → Database → PostgreSQL. This gives it its own volume and
+   credentials that Railway generates
+2. **`migrator`, `bot` and `admin`:** from the repository, each with its source
+   branch set to the environment's branch (`main` for production, `staging`
+   for staging)
+
+Build and start settings — what production actually runs:
+
+| Service | Build command | Start command | Other |
+|---|---|---|---|
+| `migrator` | `pnpm install --frozen-lockfile` | `node scripts/deploy.mjs` | Restart policy `NEVER` |
+| `bot` | `pnpm install --frozen-lockfile && pnpm build` | `pnpm --filter @luxury/bot start` | Healthcheck `/health` |
+| `admin` | `pnpm install --frozen-lockfile && pnpm build` | `pnpm --filter @luxury/admin start` | Healthcheck `/health` |
+
+Production's `admin` currently gets these commands from `RAILPACK_*` and
+`NIXPACKS_*` variables rather than from service settings; either works.
+
+### 3. Variables
+
+**Plain values and references:**
+
+| Service | Variable | Value |
+|---|---|---|
+| `migrator` | `MIGRATE_DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `bot` | `DATABASE_URL` | `postgres://bot_user:${{BOT_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}` |
+| `bot` | `MODEL_PROVIDER`, `MODEL_NAME`, `LOG_LEVEL` | e.g. `gemini`, `gemini-3.1-flash-lite`, `info` |
+| `admin` | `DATABASE_URL` | `postgres://admin_user:${{ADMIN_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}` |
+| `admin` | `PUBLIC_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `admin` | `PORT`, `LOG_LEVEL` | `3000`, `info` |
+
+The role name in `DATABASE_URL` (`bot_user` / `admin_user`) is the
+security-relevant half of the string — it decides what the service may see —
+so it is written out, while the password is only ever a reference.
+
+**Secrets — through stdin, never as an argument.** `--stdin` keeps the value
+out of your shell history. Generate passwords with `openssl rand -hex 24`: the
+password is placed inside a URL, where characters like `@`, `:` or `/` would
+break it. Keep them in a password manager, never in a chat or a file.
+
+Each role password goes on **two** services — `migrator`, which applies it to
+the role, and the service that connects with it. The two values must be
+identical.
 
 ```bash
-railway config plan
+echo -n '<bot_user password>'   | railway variable set BOT_DB_PASSWORD   --stdin --service migrator --environment <env>
+echo -n '<bot_user password>'   | railway variable set BOT_DB_PASSWORD   --stdin --service bot      --environment <env>
+echo -n '<admin_user password>' | railway variable set ADMIN_DB_PASSWORD --stdin --service migrator --environment <env>
+echo -n '<admin_user password>' | railway variable set ADMIN_DB_PASSWORD --stdin --service admin    --environment <env>
+
+echo -n '<your email>'          | railway variable set ADMIN_ALLOWLIST   --stdin --service migrator --environment <env>
+
+echo -n '<Telegram token>'      | railway variable set TELEGRAM_BOT_TOKEN      --stdin --service bot   --environment <env>
+openssl rand -hex 32            | railway variable set TELEGRAM_WEBHOOK_SECRET --stdin --service bot   --environment <env>
+echo -n '<Gemini key>'          | railway variable set GEMINI_API_KEY          --stdin --service bot   --environment <env>
+
+echo -n '<Google client id>'    | railway variable set GOOGLE_CLIENT_ID     --stdin --service admin --environment <env>
+echo -n '<Google secret>'       | railway variable set GOOGLE_CLIENT_SECRET --stdin --service admin --environment <env>
+openssl rand -hex 32            | railway variable set AUTH_SECRET          --stdin --service admin --environment <env>
+echo -n '<Telegram token>'      | railway variable set TELEGRAM_BOT_TOKEN   --stdin --service admin --environment <env>
 ```
 
-**לקרוא את הפלט לפני `apply`.** אם הפרויקט כבר קיים ויש בו שירותים שאינם מופיעים ב-`.railway/railway.ts`, התוכנית תציע למחוק אותם — הקובץ הוא ההגדרה המלאה, לא תוספת. מחיקה דורשת `--confirm-destructive` בנפרד, וזו הסיבה.
+Each environment gets its **own** Telegram bot, its own passwords and its own
+`AUTH_SECRET`. See the duplication warning above for what a shared token does.
+
+### 4. Deploy — `migrator` first
+
+Deploy `migrator` and wait for it to finish before `bot` and `admin`. Its log
+should show the migrations, then:
+
+```
+password set for bot_user
+password set for admin_user
+allowlist: added <your email>
+```
 
 ```bash
-railway config apply
+railway logs --service migrator --environment <env>
 ```
 
-בסוף השלב הזה קיימים ארבעת השירותים. ה-`migrator` ירוץ ויחיל את ארבע המיגרציות; `bot` ו-`admin` **ייכשלו בהפעלה** — עדיין אין להם סיסמת DB. זה הצפוי, והם יעלו בסוף שלב 4.
+The order matters because `migrator` spends about a minute installing
+dependencies before it applies the passwords. An `admin` that starts in that
+window runs Better Auth's schema check with a password the role does not accept
+yet, and logs a one-time "Could not validate the database schema" error.
 
-בלוג של ה-`migrator` צריכות להופיע ארבע שורות `applying`:
+### 5. Domains
 
 ```bash
-railway logs --service migrator
+railway domain --service bot   --environment <env>
+railway domain --service admin --environment <env>
 ```
 
-### 3. סיסמאות התפקידים — צעד שאתה מבצע, לא הקוד
+`bot` is the only service exposed on purpose — for the webhook. `admin` sits
+behind sign-in and the allowlist.
 
-המיגרציה יוצרת את `bot_user` ו-`admin_user` **בלי סיסמה**, כלומר אי אפשר להתחבר איתם. הסיסמאות אינן חלק מהמיגרציות ולא נכנסות לגיט:
+### 6. Google sign-in
 
-```bash
-railway connect Postgres --ssh
+In Google Cloud, add the environment's callback to the OAuth client's
+authorized redirect URIs:
+
+```
+https://<admin domain>/api/auth/callback/google
 ```
 
-```sql
-ALTER ROLE bot_user   PASSWORD '<סיסמה ממנהל הסיסמאות>';
-ALTER ROLE admin_user PASSWORD '<סיסמה אחרת>';
-```
-
-שתי סיסמאות שונות, אחת לכל תפקיד, שונות בין staging לפרודקשן, ולא נכתבות בצ'אט או בקובץ.
-
-### 4. הסודות — דרך stdin, לא כארגומנט
-
-`--stdin` שומר על הערך מחוץ להיסטוריית הפקודות:
-
-```bash
-echo -n '<סיסמת bot_user>' | railway variable set BOT_DB_PASSWORD   --stdin --service bot
-echo -n '<טוקן טלגרם>'      | railway variable set TELEGRAM_BOT_TOKEN --stdin --service bot
-openssl rand -hex 32        | railway variable set TELEGRAM_WEBHOOK_SECRET --stdin --service bot
-
-echo -n '<סיסמת admin_user>' | railway variable set ADMIN_DB_PASSWORD    --stdin --service admin
-echo -n '<google client id>' | railway variable set GOOGLE_CLIENT_ID     --stdin --service admin
-echo -n '<google secret>'    | railway variable set GOOGLE_CLIENT_SECRET --stdin --service admin
-openssl rand -hex 32         | railway variable set BETTER_AUTH_SECRET   --stdin --service admin
-echo -n '<טוקן טלגרם>'       | railway variable set TELEGRAM_BOT_TOKEN   --stdin --service admin
-```
-
-`DATABASE_URL` עצמו כבר מוגדר ב-IaC ומרכיב את עצמו מהסיסמה הזו ומכתובת הרשת הפנימית של Postgres — **שם התפקיד** (`bot_user` / `admin_user`) נמצא בקוד ונסקר בקוד, כי זה החלק שקובע מה השירות רשאי לראות.
-
-הרצה חוזרת של `railway config apply` לא דורסת את הערכים האלה: הם מסומנים `preserve()`.
-
-### 5. דומיינים
-
-```bash
-railway domain --service bot
-railway domain --service admin
-```
-
-`bot` הוא השירות היחיד שנחשף בכוונה — בשביל ה-webhook. `admin` מאחורי auth ו-allowlist.
-
-### 6. השורה הראשונה ב-allowlist
-
-התחברות עם גוגל אינה הרשאה. עד שיש שורה בטבלה אף אחד לא נכנס, כולל אתה:
-
-```sql
-INSERT INTO public.admin_allowlist (email, added_by) VALUES ('<המייל שלך>', 'bootstrap');
-```
+Signing in with Google is not authorization: until your address is on the
+allowlist, nobody gets in, including you. The first address comes from
+`ADMIN_ALLOWLIST` in step 3. After that, managers are added from the Users page
+in the admin interface — no SQL by hand. The variable only adds; a removal made
+in the interface is not undone by the next deploy.
 
 ---
 
-## דיפלוי שוטף
+## Routine deploys
 
-- **פריסה מגיט בלבד.** אין שינוי ידני בפרודקשן
-- push ל-`main` → נבנים רק השירותים שה-`watchPatterns` שלהם נגעו
-- **שינוי בתשתית** (משתנה, פקודת הפעלה, שירות חדש): עורכים את `.railway/railway.ts`, `railway config plan`, ואז `apply`
-- **מיגרציה חדשה:** `railway redeploy --service migrator` לפני שהקוד שתלוי בה עולה
-- CI מריץ typecheck וטסטים על כל PR ([.github/workflows/ci.yml](.github/workflows/ci.yml)). זו האכיפה — לא ה-Skill
+- **Deploy from git only.** No manual changes in production
+- A push to `staging` deploys staging; **a push to `main` deploys production**
+- Which services rebuild on a push: `bot` and `migrator` have watch patterns;
+  production's `admin` currently has none, so it rebuilds on every push
+- **A new migration:** `migrator` watches `migrations/**`, so pushing one
+  redeploys it. To run it again by hand, before the code that depends on it
+  ships:
+
+  ```bash
+  railway service redeploy --service migrator --environment <env>
+  ```
+
+- **Infrastructure changes** (a variable, a start command, a new service) are
+  made in the dashboard for now, and recorded in
+  [work/0002](work/0002-apply-railway-config.md) until `.railway/railway.ts`
+  matches reality
+- CI runs typecheck and the tests on every push to `main` and on every pull
+  request ([.github/workflows/ci.yml](.github/workflows/ci.yml)). That is the
+  enforcement — not the Skill. It does not yet block a deploy
 
 ---
 
-## מה עוד חייב להיסגר לפני פרודקשן
+## Still required before production is production-grade
 
-- **גיבויים אוטומטיים + שחזור שנבדק בפועל.** גיבוי שלא שוחזר אף פעם אינו גיבוי
-- **Sentry וניטור uptime** בשני השירותים
-- **סיבוב מפתחות:** כל מפתח שעבר בגיט או בצ'אט מוחלף מיד
+- **Automated backups, and a restore that has actually been tested.** A backup
+  that has never been restored is not a backup
+- **Sentry and uptime monitoring** on both services
+- **Key rotation:** any key that has passed through git or a chat is replaced
+  immediately
