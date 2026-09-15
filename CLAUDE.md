@@ -244,7 +244,9 @@ Assembled at call time from an **ordered set of documents** in the DB, edited in
 ## Operations
 
 - Deploy from git only. No manual changes in production
-- Staging before production
+- Staging before production. The `staging` branch deploys the staging environment (DEPLOY.md)
+- **A push to `main` deploys production**, and CI does not yet gate the deploy ([work/0001](work/0001-ci-as-a-deploy-gate.md)). Test on `staging` first; push to `main` only with the owner's go-ahead
+- The Railway CLI acts on its linked environment, which is `production` for everyone who has linked so far. Pass `--environment` on every command
 - Automated backups + an actual, tested restore
 - Sentry for errors, uptime monitoring
 - `.env` is in `.gitignore`. Production credentials never land on a local machine
