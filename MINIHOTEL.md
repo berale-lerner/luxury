@@ -170,10 +170,63 @@ otaInfo:  פרטי הפורטל
 
 ---
 
+## החשבון שלנו — מה עלה מההתכתבות עם התמיכה
+
+מקור: התכתבות במייל של בעל המלון עם MiniHotel ב-17–18 באוגוסט 2026 (כרטיס תמיכה `197345`), כשהקים אינטגרציה ב-Base44. נכתב ב-18 בספטמבר 2026.
+**אין כאן סיסמאות.** הן נמצאות בתיבת המייל של המלון, ולא נכנסות לריפו.
+
+### תנאי הגישה ל-production
+
+- **Professional plan בלבד.** API זמין רק בתוכנית הזו; משנים תוכנית דרך איש המכירות
+- **כתב ויתור (disclaimer).** המלון **וגם חברת הפיתוח** מאשרים במייל שכל תקלה באינטגרציה באחריותם בלבד. זה תנאי לקבלת credentials של production
+- **IP קבוע בלבד.** לא טווחים, לא IP דינמי. מותר לשלוח כתובת אחת או כמה כתובות בודדות
+- פיתוח ובדיקות קודם כול ב-sandbox; ה-whitelist מתבקש רק אחרי שהפיתוח עובד שם
+- מה שלא מופיע ב[תיעוד](https://minihotel.readme.io/reference/overview) לא אפשרי דרך API
+- במיילים של התמיכה (LATAM) כתוב שאם לא עונים, זה נחשב כאישור שהפרטים נכונים. לכן חשוב לענות כשמשהו שגוי
+
+### מה קיים היום
+
+| פריט | ערך |
+|---|---|
+| Hotel code | `luxury50` |
+| Rate codes | `*ALL`, `USD` |
+| IP ב-whitelist | `137.184.104.26` — שרת proxy של האינטגרציה ב-Base44 |
+| Webhooks | מופעלים. נשלחים ל-endpoint של Base44 עם Basic Auth |
+| Booking Engine | יש Hotel ID ו-Instance ID (במייל). לא בשימוש אצלנו |
+
+⚠️ **הונפקו שני זוגות credentials שונים ל-production:** שם משתמש אחד מהתמיכה באנגלית (Arkady), ושם משתמש אחר מהתמיכה ב-LATAM (Yasmany), שנשלח יחד עם ה-IP. לא ברור איזה זוג שייך לאיזה API, והאם ה-whitelist קשור למשתמש. צריך לברר לפני שמחברים.
+
+⚠️ **ה-whitelist לא אחיד בין ה-endpoints.** מאותו IP, ARI (`/gds`) ו-Content (`/content/agents/ws/...`) עבדו, אבל `GetReservationKey` (`/api/Agents/Sci/Reservation/GetReservationKey`, SCI) החזיר `401 Your IP Address is not authorized`. לא ידוע אם זה תוקן.
+
+ℹ️ פרטי הכניסה לממשק (GUI) של MiniHotel לא עובדים מול ה-API (`ERR 210: Wrong User Name`). ה-credentials של ה-API נפרדים.
+
+### כתובות
+
+| API | Base URL |
+|---|---|
+| ARI | `https://api.minihotel.cloud/gds` |
+| Content & Data | `https://api2.minihotel.cloud` |
+
+### קודי סוגי חדרים
+
+`BALI`, `DUBAI`, `KOSMIO`, `Lavilla` (LA VILLA), `MIAMI`, `NEWYORK`, `SPEDRO` (S.PEDRO), `TEL-AVID`, `TIBERIAS`, `TOKIO`, `VENICE`, ו-`SUITE1`–`SUITE10`.
+**המלון לא משתמש ב-`SUITE1`–`SUITE10`.** הם לא צריכים להגיע לאורח.
+
+### אנשי קשר
+
+| מי | תפקיד | ערוץ |
+|---|---|---|
+| Arkady Katz | VP Product | support@minihotel.io (Freshdesk; לענות בשרשור של כרטיס `197345`) |
+| Yasmany Maestres | Technical Support Manager, LATAM (ספרדית) | soporte@minihotel.io |
+| Viridiana Sánchez | Onboarding (ספרדית) | viri@minihotel.io |
+
+---
+
 ## לשאול את MiniHotel
 
 1. **האם אפשר להנפיק משתמש שני מוגבל לקריאת ARI בלבד?** אם כן — כל הדיון על היכן מחזיקים את המפתח מתייתר
 2. **האם יש אימות על ה-webhooks ועל ה-ARI Push** — secret, חתימה, או IP מוצא קבוע שאפשר לסנן לפיו?
-3. איך מגדירים את ה-IP allowlist בצד שלהם (קוד `863`/`A01`)
+3. ~~איך מגדירים את ה-IP allowlist~~ — נענה: שולחים במייל כתובות IP קבועות בודדות, לא טווחים (ראו "החשבון שלנו")
+6. איזה משני זוגות ה-credentials שייך לאיזה API, והאם ה-whitelist נקבע לפי משתמש או לפי API
 4. האם יש הגבלת קצב בפועל, גם אם לא מתועדת
 5. האם `lockKeys` ניתן לכיבוי ב-payload אם איננו משתמשים ב-TTLock
