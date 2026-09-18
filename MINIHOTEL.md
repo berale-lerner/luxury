@@ -190,7 +190,7 @@ otaInfo:  פרטי הפורטל
 |---|---|
 | Hotel code | `luxury50` |
 | Rate codes | `*ALL`, `USD` |
-| IP ב-whitelist | `137.184.104.26` — שרת proxy של האינטגרציה ב-Base44 |
+| IP ב-whitelist | `137.184.104.26` — שרת proxy של האינטגרציה ב-Base44. **Base44 יוצאת משימוש; לבקש להסיר** |
 | Webhooks | מופעלים. נשלחים ל-endpoint של Base44 עם Basic Auth |
 | Booking Engine | יש Hotel ID ו-Instance ID (במייל). לא בשימוש אצלנו |
 
@@ -199,6 +199,13 @@ otaInfo:  פרטי הפורטל
 ⚠️ **ה-whitelist לא אחיד בין ה-endpoints.** מאותו IP, ARI (`/gds`) ו-Content (`/content/agents/ws/...`) עבדו, אבל `GetReservationKey` (`/api/Agents/Sci/Reservation/GetReservationKey`, SCI) החזיר `401 Your IP Address is not authorized`. לא ידוע אם זה תוקן.
 
 ℹ️ פרטי הכניסה לממשק (GUI) של MiniHotel לא עובדים מול ה-API (`ERR 210: Wrong User Name`). ה-credentials של ה-API נפרדים.
+
+### החלטות (18 בספטמבר 2026)
+
+- **Base44 יוצאת משימוש.** המערכת הזו מחליפה אותה
+- **גם `apps/bot` וגם `apps/admin` ניגשים ל-MiniHotel.** לכן לשניהם static egress IPs ב-production, ושניהם ב-whitelist. המשמעות: שני השירותים מחזיקים credential שיודע גם לחייב כרטיסי אשראי (ראו "אימות"). כל שירות מקבל אותו כמשתנה סביבה משלו, ברמת השירות
+- **משתמשים בחשבון ה-API הקיים.** לא מבקשים משתמש נוסף, כדי לא לעכב את התהליך. איזה משני שמות המשתמש עובד בודקים בעצמנו אחרי שה-whitelist נפתח
+- **staging עובד מול ה-sandbox,** כך שהוא לא צריך whitelist
 
 ### כתובות
 
@@ -227,6 +234,6 @@ otaInfo:  פרטי הפורטל
 1. **האם אפשר להנפיק משתמש שני מוגבל לקריאת ARI בלבד?** אם כן — כל הדיון על היכן מחזיקים את המפתח מתייתר
 2. **האם יש אימות על ה-webhooks ועל ה-ARI Push** — secret, חתימה, או IP מוצא קבוע שאפשר לסנן לפיו?
 3. ~~איך מגדירים את ה-IP allowlist~~ — נענה: שולחים במייל כתובות IP קבועות בודדות, לא טווחים (ראו "החשבון שלנו")
-6. איזה משני זוגות ה-credentials שייך לאיזה API, והאם ה-whitelist נקבע לפי משתמש או לפי API
+6. ~~איזה משני זוגות ה-credentials שייך לאיזה API~~ — לא שואלים; בודקים בעצמנו אחרי שה-whitelist נפתח
 4. האם יש הגבלת קצב בפועל, גם אם לא מתועדת
 5. האם `lockKeys` ניתן לכיבוי ב-payload אם איננו משתמשים ב-TTLock

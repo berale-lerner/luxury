@@ -145,15 +145,11 @@ what was asked, and when.
 
 Transport only, in `apps/bot/src/minihotel/`.
 
-**On placement.** A `packages/minihotel` would follow the precedent of
-`packages/messaging` and be importable by `apps/admin` later. It is not what
-we are doing, because today only the bot needs it — only the bot has the
-static egress IP the vendor allowlists, and admin has no MiniHotel client at
-all. Extracting a package on the day admin does need one (creating a booking,
-reading a balance) is moving a directory and editing a `package.json`.
-Maintaining a shared package with a single consumer is a standing cost for a
-benefit that may never arrive. If this is extracted later, it takes the
-`packages/messaging` shape: credentials passed in, never read from env.
+**On placement.** Superseded (2026-09-18): the owner decided that `apps/admin`
+will access MiniHotel too, so both services get static egress IPs on the vendor
+allowlist and both need a client. That favours a shared `packages/minihotel` in
+the `packages/messaging` shape: credentials passed in, never read from env. The
+final placement is decided in the new plan document.
 
 Credentials are read from env on the server side. They never appear in the
 value the tool returns and never in a log line — the same rule the Telegram
