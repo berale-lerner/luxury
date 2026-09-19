@@ -191,12 +191,16 @@ otaInfo:  פרטי הפורטל
 | Hotel code | `luxury50` |
 | Rate codes | `*ALL`, `USD` |
 | IP ב-whitelist | `137.184.104.26` — שרת proxy של האינטגרציה ב-Base44. **Base44 יוצאת משימוש; לבקש להסיר** |
-| Webhooks | מופעלים. נשלחים ל-endpoint של Base44 עם Basic Auth |
+| Webhooks | מופעלים. נשלחים ל-endpoint של Base44 עם Basic Auth. נרשמו ארבעה אירועים: שלושת אירועי ההזמנה ו-`room.occupancy.updated` (לא מופיע בסעיף ה-Webhooks למטה, לאמת בתיעוד). ⚠️ ה-URL נשלח אליהם פעם אחת עם `%0A` (שורה חדשה) בסופו; לא ידוע איזו גרסה נרשמה |
 | Booking Engine | יש Hotel ID ו-Instance ID (במייל). לא בשימוש אצלנו |
 
 ⚠️ **הונפקו שני זוגות credentials שונים ל-production:** שם משתמש אחד מהתמיכה באנגלית (Arkady), ושם משתמש אחר מהתמיכה ב-LATAM (Yasmany), שנשלח יחד עם ה-IP. לא ברור איזה זוג שייך לאיזה API, והאם ה-whitelist קשור למשתמש. צריך לברר לפני שמחברים.
 
 ⚠️ **ה-whitelist לא אחיד בין ה-endpoints.** מאותו IP, ARI (`/gds`) ו-Content (`/content/agents/ws/...`) עבדו, אבל `GetReservationKey` (`/api/Agents/Sci/Reservation/GetReservationKey`, SCI) החזיר `401 Your IP Address is not authorized`. לא ידוע אם זה תוקן.
+
+ℹ️ **ל-Base44 יש אינטגרציה שעבדה ב-sandbox:** זמינות ומחירים (Immediate ARI), `getRoomTypes`, `getRooms`, `GetReservationKey`, מקבל webhooks ו-iframe של Booking Engine. הבקשות והתשובות שהיא שלחה וקיבלה הן הדוגמה הקרובה ביותר לפורמט האמיתי שיש לנו.
+
+ℹ️ **מה הוצהר מולם:** שימוש לקריאה בלבד — "we will not create, modify, or cancel reservations through the API". פעולת כתיבה מ-`apps/admin` בעתיד תהיה חריגה ממה שהוצהר, וכדאי לעדכן אותם לפני כן.
 
 ℹ️ פרטי הכניסה לממשק (GUI) של MiniHotel לא עובדים מול ה-API (`ERR 210: Wrong User Name`). ה-credentials של ה-API נפרדים.
 
