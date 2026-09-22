@@ -112,6 +112,31 @@ before relying on them.
   `gemini-3.8-flash` stopped after 20 requests with a 429 on 2026-09-10, and
   the roughly 55-second wait the error suggested was not the real window
 
+### Static egress addresses
+
+Railway gives each service a small pool of outbound addresses, enabled per
+service and environment. MiniHotel allowlists fixed addresses only, so these
+are what its API sees (MINIHOTEL.md). They are not secrets.
+
+| service | environment | addresses |
+|---|---|---|
+| bot | production | `208.77.244.242`, `152.55.184.241`, `152.55.185.189` |
+| admin | production | `208.77.244.240`, `152.55.185.189`, `152.55.185.190` |
+| bot | staging | `208.77.244.242`, `152.55.184.241`, `152.55.185.189` |
+| admin | staging | `208.77.244.242`, `152.55.184.241`, `152.55.185.190` |
+
+Five distinct addresses in total, as of 2026-09-22.
+
+⚠️ **The pool is shared.** staging `bot` currently egresses from exactly the
+same three addresses as production `bot`. A vendor allowlist therefore cannot
+tell the two environments apart, and an allowlist entry added for one service
+may let another one through. What keeps staging away from production data is
+its own credentials, not its addresses.
+
+⚠️ **Assume the addresses can change.** Nothing in Railway promises they are
+permanent. If MiniHotel starts answering `863` / `A01`, compare this table
+against the dashboard before looking anywhere else.
+
 ### Why `migrator` is a separate service
 
 Migrations run as the owner role — the only role allowed to create roles,
