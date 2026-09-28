@@ -586,5 +586,4 @@ input, textarea { font: inherit; color: inherit; }
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 7%, transparent);
 }
-.availability-grid td[data-state='closed'],
 .availability-grid td[data-state='missing'] { color: var(--text-faint); font-weight: 400; }

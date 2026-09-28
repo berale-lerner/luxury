@@ -245,3 +245,128 @@ describe('a refusal', () => {
     expect(everything).not.toContain('Wrong User Name');
   });
 });
+
+describe('an Immediate ARI request', () => {
+  const STAY = { from: '2026-10-04', to: '2026-10-05', adults: 2, rateCode: 'USD' };
+
+  it('asks for every room type and board for the stay, with the guests and escaped credentials', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('immediate-ari-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    await client.immediateAri({ ...STAY, children: 1 });
+
+    const sent = stub.received[0]!;
+    expect(sent).toContain(
+      '<Authentication username="atitlan-test" password="p&quot;a&amp;s&lt;s&gt;&apos;|!/" />',
+    );
+    expect(sent).toContain('<Hotel id="luxury50" />');
+    expect(sent).toContain('<DateRange from="2026-10-04" to="2026-10-05" />');
+    expect(sent).toContain('<Guests adults="2" child="1" babies="0" />');
+    expect(sent).toContain('<RoomType id="*ALL*" />');
+    expect(sent).toContain('<Prices rateCode="USD">\n<Price boardCode="*ALL*" />');
+  });
+
+  it.each([
+    ['departure on the arrival day', { to: '2026-10-04' }],
+    ['departure before arrival', { to: '2026-10-03' }],
+    ['a date that does not exist', { from: '2026-02-30' }],
+    ['no adults', { adults: 0 }],
+    ['a fraction of an adult', { adults: 1.5 }],
+    ['more guests than any apartment', { adults: 21 }],
+    ['negative children', { children: -1 }],
+  ])('refuses %s before anything is sent', async (_label, change) => {
+    const stub = await stubMiniHotel({ body: '' });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    await expect(client.immediateAri({ ...STAY, ...change })).rejects.toThrow(RangeError);
+    expect(stub.received).toEqual([]);
+  });
+});
+
+describe('an Immediate ARI response', () => {
+  const STAY = { from: '2026-10-04', to: '2026-10-05', adults: 1, rateCode: 'USD' };
+
+  it('parses the recorded sandbox answer', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('immediate-ari-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const ari = await client.immediateAri(STAY);
+
+    expect([ari.hotelId, ari.currency]).toEqual(['sandbox', 'USD']);
+    expect(ari.roomTypes.map((t) => [t.id, t.nameEnglish, t.available, t.total])).toEqual([
+      ['DBL', 'Double room', 2, 9],
+      ['Executive', 'Executive Room', 1, 1],
+    ]);
+    expect(ari.roomTypes[0]!.prices[0]).toEqual({
+      board: 'BB',
+      boardDescription: 'BB',
+      value: 290,
+      valueNonRefundable: 261,
+    });
+  });
+
+  it('keeps only the fields it names', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('immediate-ari-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const ari = await client.immediateAri(STAY);
+
+    expect(Object.keys(ari).sort()).toEqual(['currency', 'hotelId', 'roomTypes']);
+    expect(Object.keys(ari.roomTypes[0]!).sort()).toEqual([
+      'available',
+      'id',
+      'nameEnglish',
+      'nameLocal',
+      'prices',
+      'total',
+    ]);
+  });
+
+  it('reads one room type with one board as lists', async () => {
+    const body = `<?xml version="1.0" encoding="UTF-8"?>
+<AvailRaters>
+  <Hotel id="luxury50" Name_h="x" Name_e="x" Currency="USD" />
+  <DateRange from="2026-10-04" to="2026-10-05" />
+  <RoomType id="DUBAI" Name_h="DUBAI" Name_e="DUBAI by luxury ATITLAN">
+    <Inventory Allocation="0" maxavail="1" />
+    <price board="RO" boardDesc="RO" value="180" value_nrf="162.00" />
+  </RoomType>
+</AvailRaters>`;
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const ari = await client.immediateAri(STAY);
+
+    expect(ari.roomTypes).toHaveLength(1);
+    expect(ari.roomTypes[0]!.available).toBe(0);
+    expect(ari.roomTypes[0]!.prices).toHaveLength(1);
+  });
+
+  it('returns no room types when nothing matches the stay', async () => {
+    const body = `<?xml version="1.0" encoding="UTF-8"?>
+<AvailRaters>
+  <Hotel id="luxury50" Name_h="x" Name_e="x" Currency="USD" />
+  <DateRange from="2026-10-04" to="2026-10-05" />
+</AvailRaters>`;
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    expect((await client.immediateAri(STAY)).roomTypes).toEqual([]);
+  });
+
+  it('rejects a room type without an inventory', async () => {
+    const body = (await fixture('immediate-ari-sandbox.xml')).replace('<Inventory Allocation="2" maxavail="9" />', '');
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    expect((await failureOf(client.immediateAri(STAY))).failure).toBe('bad_response');
+  });
+
+  it('reports ERR 303 as a vendor error carrying its code', async () => {
+    const stub = await stubMiniHotel({ body: 'ERR 303: Incorrect room linkage setup' });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const error = await failureOf(client.immediateAri(STAY));
+    expect([error.failure, error.code]).toEqual(['vendor_error', '303']);
+  });
+});

@@ -165,19 +165,18 @@ export function AvailabilityPage() {
                         const night = byDate.get(date);
                         if (!night) {
                           return (
-                            <td key={date} data-state="missing" title="אין נתון">
+                            <td key={date} data-state="missing" title="MiniHotel לא החזיר את הדירה הזו ללילה הזה">
                               –
                             </td>
                           );
                         }
-                        const state = night.closed ? 'closed' : night.available > 0 ? 'free' : 'full';
                         return (
                           <td
                             key={date}
-                            data-state={state}
-                            title={`${night.price} ${week.currency}`}
+                            data-state={night.available > 0 ? 'free' : 'full'}
+                            title={`${night.available} פנויות מתוך ${night.total}`}
                           >
-                            {night.closed ? 'סגור' : night.available}
+                            {night.available}
                           </td>
                         );
                       })}
@@ -191,8 +190,8 @@ export function AvailabilityPage() {
 
         {week && (
           <p className="hint">
-            המספר בכל תא הוא כמה יחידות מהסוג הזה פנויות באותו לילה. ריחוף מעל תא מציג את המחיר ללילה (
-            {week.currency}).
+            המספר בכל תא הוא כמה יחידות מהסוג הזה פנויות באותו לילה. ריחוף מעל תא מציג מתוך כמה. מקף:
+            MiniHotel לא החזיר את הדירה ללילה הזה.
           </p>
         )}
       </div>

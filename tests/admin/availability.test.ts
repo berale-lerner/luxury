@@ -8,7 +8,12 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { MiniHotelError, type BulkAri, type BulkAriQuery, type MiniHotelClient } from '@luxury/minihotel';
+import {
+  MiniHotelError,
+  type ImmediateAri,
+  type ImmediateAriQuery,
+  type MiniHotelClient,
+} from '@luxury/minihotel';
 import { buildApp } from '../../apps/admin/server/src/app.js';
 import type { SessionReader } from '../../apps/admin/server/src/auth/session.js';
 import {
@@ -22,30 +27,34 @@ import { urlForRole } from '../helpers/config.js';
 /** 23:30 UTC on the 27th is already the 28th in Israel. */
 const LATE_EVENING_UTC = new Date('2026-09-27T23:30:00Z');
 
-function night(date: string, available: number) {
+function stayType(id: string, available: number) {
   return {
-    date,
+    id,
+    nameLocal: `${id} local`,
+    nameEnglish: `${id} by luxury ATITLAN`,
     available,
-    price: 290,
-    minNights: 1,
-    closed: false,
-    closedToArrival: false,
-    closedToDeparture: false,
+    total: 5,
+    prices: [{ board: 'RO', boardDescription: 'RO', value: 180, valueNonRefundable: 162 }],
   };
 }
 
-/** A MiniHotel that answers every night in the range and records the questions. */
-function fakeClient(overrides: { fail?: MiniHotelError } = {}) {
-  const asked: BulkAriQuery[] = [];
+/**
+ * A MiniHotel that answers every stay and records the questions. `omit`
+ * leaves a room type out of the answer for one arrival date.
+ */
+function fakeClient(overrides: { fail?: MiniHotelError; omit?: { id: string; on: string } } = {}) {
+  const asked: ImmediateAriQuery[] = [];
   const client: MiniHotelClient = {
-    async bulkAri(query): Promise<BulkAri> {
+    async immediateAri(query): Promise<ImmediateAri> {
       asked.push(query);
       if (overrides.fail) throw overrides.fail;
-      const days = [];
-      for (let date = query.from; date <= query.to; date = addDays(date, 1)) days.push(night(date, 3));
-      // One night outside the range, as a vendor might send.
-      days.push(night(addDays(query.to, 1), 3));
-      return { hotelId: 'luxury50', currency: 'USD', roomTypes: [{ id: 'DUBAI', name: 'DUBAI', days }] };
+      const roomTypes = [stayType('DUBAI', 3), stayType('MIAMI', 0)].filter(
+        (type) => !(overrides.omit && type.id === overrides.omit.id && query.from === overrides.omit.on),
+      );
+      return { hotelId: 'luxury50', currency: 'USD', roomTypes };
+    },
+    async bulkAri() {
+      throw new Error('the availability screen does not use Bulk ARI');
     },
   };
   return { client, asked };
@@ -62,13 +71,22 @@ describe('the week', () => {
     expect(service.today()).toBe('2026-09-28');
   });
 
-  it('asks for seven nights, first and last inclusive, with the configured rate code', async () => {
+  it('asks for seven one-night stays, departure the next day, with the configured rate code', async () => {
     const fake = fakeClient();
     const service = createAvailabilityService({ client: fake.client, rateCode: 'USD', timeZone: 'UTC' });
 
     const week = await service.week('2026-09-28');
 
-    expect(fake.asked).toEqual([{ from: '2026-09-28', to: '2026-10-04', rateCode: 'USD' }]);
+    expect(fake.asked.map((q) => [q.from, q.to])).toEqual([
+      ['2026-09-28', '2026-09-29'],
+      ['2026-09-29', '2026-09-30'],
+      ['2026-09-30', '2026-10-01'],
+      ['2026-10-01', '2026-10-02'],
+      ['2026-10-02', '2026-10-03'],
+      ['2026-10-03', '2026-10-04'],
+      ['2026-10-04', '2026-10-05'],
+    ]);
+    expect(fake.asked.every((q) => q.rateCode === 'USD' && q.adults === 1)).toBe(true);
     expect([week.from, week.to]).toEqual(['2026-09-28', '2026-10-04']);
     expect(week.roomTypes[0]!.nights.map((n) => n.date)).toEqual([
       '2026-09-28',
@@ -89,12 +107,28 @@ describe('the week', () => {
   it('returns each night with exactly the fields the screen uses', async () => {
     const service = createAvailabilityService({ client: fakeClient().client, rateCode: 'USD', timeZone: 'UTC' });
     const week = await service.week('2026-09-28');
-    expect(Object.keys(week.roomTypes[0]!.nights[0]!).sort()).toEqual([
-      'available',
-      'closed',
-      'date',
-      'price',
+    expect(Object.keys(week.roomTypes[0]!.nights[0]!).sort()).toEqual(['available', 'date', 'total']);
+  });
+
+  it('keeps sold-out nights as zero, and names types in English', async () => {
+    const service = createAvailabilityService({ client: fakeClient().client, rateCode: 'USD', timeZone: 'UTC' });
+    const week = await service.week('2026-09-28');
+
+    expect(week.roomTypes.map((type) => [type.id, type.name])).toEqual([
+      ['DUBAI', 'DUBAI by luxury ATITLAN'],
+      ['MIAMI', 'MIAMI by luxury ATITLAN'],
     ]);
+    expect(week.roomTypes[1]!.nights[0]).toEqual({ date: '2026-09-28', available: 0, total: 5 });
+  });
+
+  it('leaves out a night MiniHotel did not return a type for, rather than guessing zero', async () => {
+    const fake = fakeClient({ omit: { id: 'MIAMI', on: '2026-09-30' } });
+    const service = createAvailabilityService({ client: fake.client, rateCode: 'USD', timeZone: 'UTC' });
+    const week = await service.week('2026-09-28');
+
+    const miami = week.roomTypes.find((type) => type.id === 'MIAMI')!;
+    expect(miami.nights.map((n) => n.date)).not.toContain('2026-09-30');
+    expect(miami.nights).toHaveLength(6);
   });
 });
 
@@ -113,11 +147,11 @@ describe('how often MiniHotel is asked', () => {
     await service.week('2026-09-28');
     clock = new Date(clock.getTime() + 29_000);
     await service.week('2026-09-28');
-    expect(fake.asked).toHaveLength(1);
+    expect(fake.asked).toHaveLength(7);
 
     clock = new Date(clock.getTime() + 2_000);
     await service.week('2026-09-28');
-    expect(fake.asked).toHaveLength(2);
+    expect(fake.asked).toHaveLength(14);
   });
 
   it('makes one call for two requests that arrive together', async () => {
@@ -125,7 +159,7 @@ describe('how often MiniHotel is asked', () => {
     const service = createAvailabilityService({ client: fake.client, rateCode: 'USD', timeZone: 'UTC' });
 
     await Promise.all([service.week('2026-09-28'), service.week('2026-09-28')]);
-    expect(fake.asked).toHaveLength(1);
+    expect(fake.asked).toHaveLength(7);
   });
 
   it('does not keep a failure, so trying again asks again', async () => {
@@ -134,7 +168,7 @@ describe('how often MiniHotel is asked', () => {
 
     await expect(service.week('2026-09-28')).rejects.toBeInstanceOf(MiniHotelError);
     await expect(service.week('2026-09-28')).rejects.toBeInstanceOf(MiniHotelError);
-    expect(fake.asked).toHaveLength(2);
+    expect(fake.asked).toHaveLength(14);
   });
 });
 

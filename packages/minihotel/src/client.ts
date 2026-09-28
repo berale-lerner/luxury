@@ -1,5 +1,6 @@
 import { bulkAriRequest, parseBulkAri, type BulkAri, type BulkAriQuery } from './bulk-ari.js';
 import { MiniHotelError, vendorErrorIn } from './errors.js';
+import { immediateAriRequest, parseImmediateAri, type ImmediateAri, type ImmediateAriQuery } from './immediate-ari.js';
 
 export const PRODUCTION_ARI_URL = 'https://api.minihotel.cloud/gds';
 export const SANDBOX_ARI_URL = 'https://sandbox.minihotel.cloud/gds';
@@ -21,6 +22,16 @@ export interface MiniHotelClientOptions {
 }
 
 export interface MiniHotelClient {
+  /**
+   * Availability and prices for one stay. Works with a plain API user — this
+   * is what Base44 used in production.
+   */
+  immediateAri(query: ImmediateAriQuery): Promise<ImmediateAri>;
+  /**
+   * Per-night ARI over a range. Answers `ERR 303` (room linkage) for our
+   * production user, 2026-09-28: it is meant for OTAs with a mapping set up
+   * by MiniHotel (MINIHOTEL.md).
+   */
   bulkAri(query: BulkAriQuery): Promise<BulkAri>;
 }
 
@@ -72,6 +83,10 @@ export function createMiniHotelClient(options: MiniHotelClientOptions): MiniHote
   }
 
   return {
+    async immediateAri(query) {
+      return parseImmediateAri(await post(immediateAriRequest(options.credentials, query)));
+    },
+
     async bulkAri(query) {
       return parseBulkAri(await post(bulkAriRequest(options.credentials, query)));
     },

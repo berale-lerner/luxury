@@ -7,6 +7,7 @@ and the space before the first line break.
 | file | request |
 |---|---|
 | `bulk-ari-sandbox.xml` | Bulk ARI against `sandbox.minihotel.cloud` with the public test user |
+| `immediate-ari-sandbox.xml` | Immediate ARI against the sandbox, one night (2026-10-04 → 10-05), one adult |
 | `err-202-unknown-hotel.txt` | Bulk ARI to the sandbox with a hotel code that does not exist |
 | `err-210-wrong-user.txt` | Bulk ARI to production with a made-up username, from a machine not on the allowlist |
 

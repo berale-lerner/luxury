@@ -1,6 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import { z } from 'zod';
 import { MiniHotelError } from './errors.js';
+import { escapeAttribute, isDate } from './xml.js';
 
 /** One room type on one night, as MiniHotel's Bulk ARI reports it. */
 export interface AriDay {
@@ -37,25 +38,11 @@ export interface BulkAriQuery {
   readonly rateCode: string;
 }
 
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Attribute values go into XML; a password with `"` or `&` must not break it. */
-function escapeAttribute(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 export function bulkAriRequest(
   credentials: { readonly username: string; readonly password: string; readonly hotelId: string },
   query: BulkAriQuery,
 ): string {
-  // The dates come from our own code today, but they are checked here so no
-  // caller can place text inside the XML through them.
-  if (!DATE.test(query.from) || !DATE.test(query.to)) {
+  if (!isDate(query.from) || !isDate(query.to)) {
     throw new RangeError('Bulk ARI dates must be YYYY-MM-DD');
   }
   const a = escapeAttribute;

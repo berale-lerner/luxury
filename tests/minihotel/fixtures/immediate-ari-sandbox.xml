@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<AvailRaters>
+  <Hotel id="sandbox" Name_h="Test Hotel MiniHotel" Name_e="Test Hotel MiniHotel" Currency="USD" />
+  <DateRange from="2026-10-04" to="2026-10-05" />
+  <Guests adults="1" child="0" babies="0" />
+  <RoomType id="DBL" Name_h="Double room" Name_e="Double room">
+    <Inventory Allocation="2" maxavail="9" />
+    <price board="BB" boardDesc="BB" value="290" value_nrf="261.00" />
+    <price board="CC" boardDesc="Coffee and Cake" value="265" value_nrf="238.50" />
+    <price board="DB" boardDesc="Dinner and Bed" value="323" value_nrf="290.70" />
+    <price board="FB" boardDesc="Full Board" value="348" value_nrf="313.20" />
+    <price board="HB" boardDesc="Half Board" value="348" value_nrf="313.20" />
+    <price board="RO" boardDesc="RO" value="265" value_nrf="238.50" />
+  </RoomType>
+  <RoomType id="Executive" Name_h="Executive Room" Name_e="Executive Room">
+    <Inventory Allocation="1" maxavail="1" />
+    <price board="BB" boardDesc="BB" value="375" value_nrf="337.50" />
+    <price board="CC" boardDesc="Coffee and Cake" value="350" value_nrf="315.00" />
+    <price board="DB" boardDesc="Dinner and Bed" value="408" value_nrf="367.20" />
+    <price board="FB" boardDesc="Full Board" value="433" value_nrf="389.70" />
+    <price board="HB" boardDesc="Half Board" value="433" value_nrf="389.70" />
+    <price board="RO" boardDesc="RO" value="350" value_nrf="315.00" />
+  </RoomType>
+</AvailRaters>

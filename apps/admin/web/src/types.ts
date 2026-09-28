@@ -100,8 +100,8 @@ export interface NightAvailability {
   date: string;
   /** Units of this type still free that night. */
   available: number;
-  price: number;
-  closed: boolean;
+  /** Units of this type in total. */
+  total: number;
 }
 
 export interface RoomTypeWeek {

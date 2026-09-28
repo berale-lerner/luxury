@@ -6,5 +6,11 @@ export {
   type MiniHotelClientOptions,
   type MiniHotelCredentials,
 } from './client.js';
+export {
+  type ImmediateAri,
+  type ImmediateAriQuery,
+  type StayPrice,
+  type StayRoomType,
+} from './immediate-ari.js';
 export { type AriDay, type AriRoomType, type BulkAri, type BulkAriQuery } from './bulk-ari.js';
 export { MiniHotelError, type MiniHotelFailure } from './errors.js';
