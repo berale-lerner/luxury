@@ -265,9 +265,11 @@ machine. Production also needs the service's static egress addresses on
 MiniHotel's allowlist (below); until then the screen reports
 `ip_not_authorized`.
 
-⚠️ Staging must never get production's values. Staging leaves Railway from the
-same addresses as production, so the vendor's allowlist would let it in
-(see "Static egress addresses").
+⚠️ **Temporarily, staging uses production's values** (owner's decision,
+2026-09-28), so the screen can be tried against the real account before
+production. Staging leaves Railway from the same addresses as production, so
+nothing on the vendor's side tells the two apart. Moving staging to the
+sandbox values above is [work/0013](work/0013-staging-minihotel-separation.md).
 
 ### 4. Deploy — `migrator` first
 
