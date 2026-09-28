@@ -94,3 +94,27 @@ export interface PromptState {
   /** Whether publishing would produce a new version. Decided by the server. */
   hasChanges: boolean;
 }
+
+/** One night of one room type, from MiniHotel. */
+export interface NightAvailability {
+  date: string;
+  /** Units of this type still free that night. */
+  available: number;
+  price: number;
+  closed: boolean;
+}
+
+export interface RoomTypeWeek {
+  id: string;
+  name: string;
+  nights: NightAvailability[];
+}
+
+export interface AvailabilityWeek {
+  /** The hotel's today, `YYYY-MM-DD`. */
+  today: string;
+  from: string;
+  to: string;
+  currency: string;
+  roomTypes: RoomTypeWeek[];
+}

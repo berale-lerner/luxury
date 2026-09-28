@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<AvailRaters><Hotel id="sandbox" Name_h="Test Hotel MiniHotel" Currency="USD" /><DateRange from="2026-09-28" to="2026-10-04" />
+<RoomTypes>
+<RoomType id="DBL" RoomName="Double room" BasicOccupancy="001" >
+<Day Mdate="20260928" Mavailability="9" Mprice="290.00" Minngt="1" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="50.00" ExtraBabyFee ="0.00" SingleUse ="25.00" />
+<Day Mdate="20260929" Mavailability="9" Mprice="290.00" Minngt="1" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="50.00" ExtraBabyFee ="0.00" SingleUse ="25.00" />
+<Day Mdate="20260930" Mavailability="9" Mprice="290.00" Minngt="1" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="50.00" ExtraBabyFee ="0.00" SingleUse ="25.00" />
+</RoomType>
+<RoomType id="EXECUTIVE" RoomName="Executive Room" BasicOccupancy="001" >
+<Day Mdate="20260928" Mavailability="1" Mprice="350" Minngt="0" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="150.00" ExtraBabyFee ="0.00" SingleUse ="0.00" />
+<Day Mdate="20260929" Mavailability="1" Mprice="350" Minngt="0" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="150.00" ExtraBabyFee ="0.00" SingleUse ="0.00" />
+<Day Mdate="20260930" Mavailability="1" Mprice="350" Minngt="0" Mclose="No" McloseArr="No" McloseDep="No" ExtraAdultFee ="150.00" ExtraChildFee ="150.00" ExtraBabyFee ="0.00" SingleUse ="0.00" />
+</RoomType>
+</RoomTypes>
+<Meals>
+<Meal MealId="B" >
+<Day Mdate="20260928" MealAdult="25.00" MealBaby="5.00" MealChild="10.00" />
+<Day Mdate="20260929" MealAdult="25.00" MealBaby="5.00" MealChild="10.00" />
+<Day Mdate="20260930" MealAdult="25.00" MealBaby="5.00" MealChild="10.00" />
+</Meal>
+<Meal MealId="D" >
+<Day Mdate="20260928" MealAdult="58.00" MealBaby="18.00" MealChild="28.00" />
+<Day Mdate="20260929" MealAdult="58.00" MealBaby="18.00" MealChild="28.00" />
+<Day Mdate="20260930" MealAdult="58.00" MealBaby="18.00" MealChild="28.00" />
+</Meal>
+<Meal MealId="L" >
+<Day Mdate="20260928" MealAdult="0.00" MealBaby="0.00" MealChild="0.00" />
+<Day Mdate="20260929" MealAdult="0.00" MealBaby="0.00" MealChild="0.00" />
+<Day Mdate="20260930" MealAdult="0.00" MealBaby="0.00" MealChild="0.00" />
+</Meal>
+</Meals>
+</AvailRaters>

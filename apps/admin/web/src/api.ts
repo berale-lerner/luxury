@@ -2,6 +2,7 @@ import type {
   AdminRole,
   AdminUser,
   Agent,
+  AvailabilityWeek,
   PromptDocument,
   PromptState,
   PromptVersion,
@@ -30,6 +31,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code?: string,
+    /** A third party's own code behind the refusal, e.g. MiniHotel's `863`. */
+    readonly vendorCode?: string,
   ) {
     super(code ?? `request failed with ${status}`);
   }
@@ -86,12 +89,12 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // The server names why it refused; the caller decides what that means to
     // the person reading the screen. Without the code every refusal reads as
     // "something went wrong", including the ones that are simply an answer.
-    const code = await response
+    const body = await response
       .clone()
       .json()
-      .then((body: { error?: string }) => body.error)
-      .catch(() => undefined);
-    throw new ApiError(response.status, code);
+      .then((parsed: { error?: string; code?: string | null }) => parsed)
+      .catch(() => ({}) as { error?: string; code?: string | null });
+    throw new ApiError(response.status, body.error, body.code ?? undefined);
   }
 
   // 204: a delete has nothing to say.
@@ -182,6 +185,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+
+  /** Seven nights from `from`, or from the hotel's today when omitted. */
+  availability: (from?: string) =>
+    request<AvailabilityWeek>(`/api/availability${from ? `?from=${encodeURIComponent(from)}` : ''}`),
 
   setAgentMuted: (id: string, muted: boolean) =>
     request<{ muted: boolean }>(`/api/conversations/${id}/agent`, {

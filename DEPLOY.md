@@ -245,6 +245,30 @@ echo -n '<Telegram token>'      | railway variable set TELEGRAM_BOT_TOKEN   --st
 Each environment gets its **own** Telegram bot, its own passwords and its own
 `AUTH_SECRET`. See the duplication warning above for what a shared token does.
 
+**MiniHotel — `admin` only, for now.** Optional as a group: without it `admin`
+starts and its availability screen says it is not configured. The three
+credentials are all-or-nothing; setting only some of them stops the service at
+boot.
+
+| Variable | production | staging |
+|---|---|---|
+| `MINIHOTEL_USERNAME` | the API user from MiniHotel (MINIHOTEL.md) | `Test` |
+| `MINIHOTEL_PASSWORD` | its password | `3657488` |
+| `MINIHOTEL_HOTEL_ID` | `luxury50` | `sandbox` |
+| `MINIHOTEL_RATE_CODE` | omit (`USD`) | omit (`USD`) |
+| `MINIHOTEL_ARI_URL` | omit (production endpoint) | `https://sandbox.minihotel.cloud/gds` |
+
+Staging's values are the sandbox's public test user, published in MiniHotel's
+documentation — not a secret. Production's password is: enter it in the
+Railway dashboard (service → Variables), so it never passes through a local
+machine. Production also needs the service's static egress addresses on
+MiniHotel's allowlist (below); until then the screen reports
+`ip_not_authorized`.
+
+⚠️ Staging must never get production's values. Staging leaves Railway from the
+same addresses as production, so the vendor's allowlist would let it in
+(see "Static egress addresses").
+
 ### 4. Deploy — `migrator` first
 
 Deploy `migrator` and wait for it to finish before `bot` and `admin`. Its log

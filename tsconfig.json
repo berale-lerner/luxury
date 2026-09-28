@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/shared" },
     { "path": "packages/messaging" },
+    { "path": "packages/minihotel" },
     { "path": "apps/bot" },
     { "path": "apps/admin" }
   ]

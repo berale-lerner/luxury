@@ -557,3 +557,34 @@ input, textarea { font: inherit; color: inherit; }
   padding: 9px 0; border-bottom: 1px solid var(--border);
 }
 .version-row:last-child { border-bottom: 0; }
+
+/* ── Availability ─────────────────────────────────────────────────────── */
+
+/* The table scrolls inside its card, never the page, on a narrow screen. */
+.page-body > .availability { max-width: 960px; padding: 0; overflow-x: auto; }
+.availability-grid { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.availability-grid th,
+.availability-grid td {
+  padding: 9px 8px; text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.availability-grid tr:last-child > * { border-bottom: 0; }
+.availability-grid thead th { font-weight: 600; font-size: 12px; color: var(--text-dim); }
+.availability-grid thead th[data-today] { color: var(--accent); }
+.availability-day,
+.availability-date { display: block; }
+.availability-date { font-weight: 400; color: var(--text-faint); }
+.availability-grid th.availability-type {
+  text-align: start; min-width: 120px;
+  position: sticky; inset-inline-start: 0; background: var(--surface);
+}
+.availability-name { display: block; font-weight: 600; }
+.availability-code { display: block; font-size: 11.5px; color: var(--text-faint); font-weight: 400; }
+.availability-grid td { font-weight: 600; min-width: 44px; }
+.availability-grid td[data-state='free'] { color: var(--manager-bubble); }
+.availability-grid td[data-state='full'] {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+}
+.availability-grid td[data-state='closed'],
+.availability-grid td[data-state='missing'] { color: var(--text-faint); font-weight: 400; }

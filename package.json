@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@luxury/messaging": "workspace:^",
+    "@luxury/minihotel": "workspace:^",
     "@luxury/shared": "workspace:^",
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",

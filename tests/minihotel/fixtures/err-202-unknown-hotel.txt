@@ -1,0 +1,1 @@
+ERR 202: Hotel GDS Code does not exist: nosuchhotel

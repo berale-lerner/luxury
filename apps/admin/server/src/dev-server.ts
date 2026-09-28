@@ -18,9 +18,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
+import { createMiniHotelClient, SANDBOX_ARI_URL } from '@luxury/minihotel';
+import { createAvailabilityService } from './availability/week.js';
 import { buildApp } from './app.js';
 import { createPool } from './db.js';
 import { createDestinationResolver } from './conversations/destination.js';
+
+/** `KEY=` with nothing after it, as .env.example has, means unset. */
+function optionalSetting<T extends z.ZodTypeAny>(inner: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), inner.optional());
+}
 
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -28,6 +35,16 @@ const schema = z.object({
   DEV_ADMIN_EMAIL: z.string().email(),
   /** Optional: without it, sending from the UI fails loudly rather than silently. */
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  /**
+   * Optional. Development talks to MiniHotel's sandbox only — production
+   * credentials never land on a local machine, and this machine is not on
+   * the vendor's allowlist anyway. The sandbox's public test user is in
+   * MiniHotel's documentation; see .env.example.
+   */
+  MINIHOTEL_USERNAME: optionalSetting(z.string().min(1)),
+  MINIHOTEL_PASSWORD: optionalSetting(z.string().min(1)),
+  MINIHOTEL_HOTEL_ID: optionalSetting(z.string().min(1)),
+  MINIHOTEL_RATE_CODE: optionalSetting(z.string().min(1)).transform((v) => v ?? 'USD'),
   PORT: z.coerce.number().int().positive().default(3000),
 });
 
@@ -46,6 +63,22 @@ const pool = createPool(config.DATABASE_URL);
 const app = buildApp({
   pool,
   logLevel: 'info',
+  availability:
+    config.MINIHOTEL_USERNAME && config.MINIHOTEL_PASSWORD && config.MINIHOTEL_HOTEL_ID
+      ? createAvailabilityService({
+          client: createMiniHotelClient({
+            credentials: {
+              username: config.MINIHOTEL_USERNAME,
+              password: config.MINIHOTEL_PASSWORD,
+              hotelId: config.MINIHOTEL_HOTEL_ID,
+            },
+            // Fixed, not configurable: there is no way to point this at production.
+            ariUrl: SANDBOX_ARI_URL,
+          }),
+          rateCode: config.MINIHOTEL_RATE_CODE,
+          timeZone: 'Asia/Jerusalem',
+        })
+      : null,
   // The only substitution. Everything downstream is the real thing.
   session: {
     async read() {

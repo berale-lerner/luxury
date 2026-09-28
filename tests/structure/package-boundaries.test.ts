@@ -54,6 +54,22 @@ describe('packages/messaging', () => {
   });
 });
 
+describe('packages/minihotel', () => {
+  it('never reads credentials from the environment — they are passed in', async () => {
+    for (const file of await sourceFiles('packages/minihotel/src')) {
+      const source = await readFile(file, 'utf8');
+      expect(source, `${file} reads the environment`).not.toMatch(/process\.env/);
+    }
+  });
+
+  it('has no dependency on the database or on another workspace package', async () => {
+    const pkg = await packageJson('packages/minihotel');
+    const dependencies = Object.keys((pkg['dependencies'] as object | undefined) ?? {});
+    expect(dependencies).not.toContain('pg');
+    expect(dependencies.filter((name) => name.startsWith('@luxury/'))).toEqual([]);
+  });
+});
+
 describe('the two services', () => {
   it('do not depend on each other', async () => {
     const bot = await packageJson('apps/bot');

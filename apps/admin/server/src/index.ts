@@ -1,7 +1,9 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
-import { loadConfig } from './config.js';
+import { createMiniHotelClient } from '@luxury/minihotel';
+import { loadConfig, miniHotelSettings } from './config.js';
+import { createAvailabilityService } from './availability/week.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
 import { createAuth, createSessionReader, registerAuthRoutes } from './auth/better-auth.js';
@@ -10,11 +12,22 @@ import { createDestinationResolver } from './conversations/destination.js';
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);
 const auth = createAuth(config, pool);
+const miniHotel = miniHotelSettings(config);
 
 const app = buildApp({
   pool,
   session: createSessionReader(auth),
   logLevel: config.LOG_LEVEL,
+  availability: miniHotel
+    ? createAvailabilityService({
+        client: createMiniHotelClient({
+          credentials: miniHotel.credentials,
+          ...(miniHotel.ariUrl ? { ariUrl: miniHotel.ariUrl } : {}),
+        }),
+        rateCode: miniHotel.rateCode,
+        timeZone: config.TIMEZONE,
+      })
+    : null,
   // The manager's messages go out through the same layer the bot uses, so
   // rate limiting, timeouts and the conversation-id-only signature apply to
   // them too (CLAUDE.md, "Outbound messages").

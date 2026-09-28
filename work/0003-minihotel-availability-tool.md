@@ -53,6 +53,14 @@ Rate limit and timeout on the call — inside the tool, so every caller gets
 them — and a log line per invocation with the parameters but not the response
 body.
 
+## Update 2026-09-28: the client exists
+
+`packages/minihotel` now holds the MiniHotel client (Bulk ARI only), used by
+the admin availability screen. The recorded fixtures and what the vendor
+actually does are in MINIHOTEL.md ("מה נבדק בפועל"). For this task: add
+Immediate ARI to that package rather than a second client in the bot, and
+reuse its error mapping.
+
 ## Open
 
 What the bot answers when MiniHotel is down. Silence is wrong and a raw error

@@ -2,6 +2,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import type pg from 'pg';
 import type { MessagingClient } from '@luxury/messaging';
+import type { AvailabilityService } from './availability/week.js';
+import { registerAvailabilityRoutes } from './availability/routes.js';
 import { createAdminGuard, type SessionReader } from './auth/session.js';
 import { assertRouteDeclaresRole, createRoleGate } from './auth/roles.js';
 import { registerConversationRoutes } from './conversations/routes.js';
@@ -12,6 +14,8 @@ export interface BuildAppOptions {
   readonly pool: pg.Pool;
   readonly session: SessionReader;
   readonly messaging: MessagingClient;
+  /** MiniHotel availability. Null or omitted: the screen says it is not configured. */
+  readonly availability?: AvailabilityService | null;
   readonly logLevel?: string;
   /** Built SPA to serve. Omitted in tests, which drive the API directly. */
   readonly webRoot?: string;
@@ -40,6 +44,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
     registerConversationRoutes(guarded, { pool: options.pool, messaging: options.messaging });
     registerUserRoutes(guarded, { pool: options.pool });
     registerPromptRoutes(guarded, { pool: options.pool });
+    registerAvailabilityRoutes(guarded, { availability: options.availability ?? null });
   });
 
   if (options.webRoot) {
