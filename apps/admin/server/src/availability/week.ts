@@ -23,8 +23,10 @@ export interface RoomTypeWeek {
   readonly id: string;
   readonly name: string;
   /**
-   * One entry per night MiniHotel returned this type for. A night it did not
-   * return is left out rather than guessed as zero.
+   * One entry per night MiniHotel returned this type for. Production leaves a
+   * type out of the answer when it cannot be booked for that one night —
+   * sold out, closed, or a minimum stay — so a missing night is left out
+   * rather than guessed as zero.
    */
   readonly nights: readonly NightAvailability[];
 }

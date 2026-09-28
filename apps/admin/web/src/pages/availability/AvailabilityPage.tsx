@@ -165,7 +165,7 @@ export function AvailabilityPage() {
                         const night = byDate.get(date);
                         if (!night) {
                           return (
-                            <td key={date} data-state="missing" title="MiniHotel לא החזיר את הדירה הזו ללילה הזה">
+                            <td key={date} data-state="missing" title="לא זמין ללילה בודד: תפוס, סגור, או שיש מינימום לילות">
                               –
                             </td>
                           );
@@ -190,8 +190,9 @@ export function AvailabilityPage() {
 
         {week && (
           <p className="hint">
-            המספר בכל תא הוא כמה יחידות מהסוג הזה פנויות באותו לילה. ריחוף מעל תא מציג מתוך כמה. מקף:
-            MiniHotel לא החזיר את הדירה ללילה הזה.
+            מספר: כמה יחידות פנויות באותו לילה (ריחוף מציג מתוך כמה). מקף: אי אפשר להזמין את הלילה הזה
+            כלילה בודד — בדרך כלל כי הדירה תפוסה, אבל גם סגירה או מינימום לילות נראים כך. דירה שלא פנויה
+            אף לילה בשבוע לא מופיעה בטבלה.
           </p>
         )}
       </div>
