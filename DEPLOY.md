@@ -133,6 +133,19 @@ tell the two environments apart, and an allowlist entry added for one service
 may let another one through. What keeps staging away from production data is
 its own credentials, not its addresses.
 
+**To check what Railway has assigned** — read-only, through the API with the
+CLI's own login (IDs from `railway status --json`):
+
+```bash
+TOKEN=$(python3 -c "import json,os; print(json.load(open(os.path.expanduser('~/.railway/config.json')))['user']['accessToken'])")
+curl -s https://backboard.railway.com/graphql/v2 -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"query":"query { egressGateways(environmentId: \"<env id>\", serviceId: \"<service id>\") { ipv4 region } }"}'
+```
+
+This shows the assignment, not the address a request actually left from. A
+gateway only applies to replicas in its own region; all four services ran in
+`ams`, matching their gateways, on 2026-09-28.
+
 ⚠️ **Assume the addresses can change.** Nothing in Railway promises they are
 permanent. If MiniHotel starts answering `863` / `A01`, compare this table
 against the dashboard before looking anywhere else.
