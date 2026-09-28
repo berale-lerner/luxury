@@ -403,3 +403,22 @@ describe('a response that does not match', () => {
     expect(JSON.stringify(error.detail)).not.toContain('Hello');
   });
 });
+
+describe('an Immediate ARI answer from production', () => {
+  it('accepts prices without value_nrf, as production sends them, and reports no non-refundable price', async () => {
+    // The sandbox fixture with value_nrf removed, which is the one
+    // difference production showed on 2026-09-28 (MINIHOTEL.md).
+    const body = (await fixture('immediate-ari-sandbox.xml')).replaceAll(/ value_nrf="[^"]*"/g, '');
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const ari = await client.immediateAri({ from: '2026-10-04', to: '2026-10-05', adults: 1, rateCode: 'USD' });
+
+    expect(ari.roomTypes[0]!.prices[0]).toEqual({
+      board: 'BB',
+      boardDescription: 'BB',
+      value: 290,
+      valueNonRefundable: null,
+    });
+  });
+});

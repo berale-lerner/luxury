@@ -19,7 +19,11 @@ export interface StayPrice {
   readonly boardDescription: string;
   /** For the whole stay, not per night. */
   readonly value: number;
-  readonly valueNonRefundable: number;
+  /**
+   * Null when the hotel has no non-refundable rate: production omits
+   * `value_nrf` entirely (2026-09-28), the sandbox always sends it.
+   */
+  readonly valueNonRefundable: number | null;
 }
 
 export interface StayRoomType {
@@ -105,7 +109,7 @@ const responseSchema = z.object({
                 board: z.string(),
                 boardDesc: z.string().default(''),
                 value: number,
-                value_nrf: number,
+                value_nrf: number.optional(),
               }),
             )
             .default([]),
@@ -148,7 +152,7 @@ export function parseImmediateAri(body: string): ImmediateAri {
         board: price.board,
         boardDescription: price.boardDesc,
         value: price.value,
-        valueNonRefundable: price.value_nrf,
+        valueNonRefundable: price.value_nrf ?? null,
       })),
     })),
   };
