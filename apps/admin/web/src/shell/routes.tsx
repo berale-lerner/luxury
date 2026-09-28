@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AvailabilityPage } from '../pages/availability/AvailabilityPage';
+import { DashboardsPage } from '../pages/dashboards/DashboardsPage';
 import { ConversationsPage } from '../pages/conversations/ConversationsPage';
 import { PromptPage } from '../pages/prompt/PromptPage';
 import { UsersPage } from '../pages/users/UsersPage';
@@ -79,7 +79,7 @@ const ConversationsIcon = (
   </svg>
 );
 
-const AvailabilityIcon = (
+const DashboardIcon = (
   <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path
       d="M7.5 2.5v3M16.5 2.5v3M3.5 9.5h17M5.5 4h13a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM8 14l2.5 2.5L16 12"
@@ -109,12 +109,18 @@ export const routes: readonly Route[] = [
     render: (params) => <ConversationsPage selectedId={params.id ?? null} />,
   },
   {
-    path: '/availability',
-    section: 'availability',
-    title: 'זמינות',
-    label: 'זמינות',
-    icon: AvailabilityIcon,
-    render: () => <AvailabilityPage />,
+    path: '/dashboards',
+    section: 'dashboards',
+    title: 'דשבורד',
+    label: 'דשבורד',
+    icon: DashboardIcon,
+    render: () => <DashboardsPage board={null} />,
+  },
+  {
+    path: '/dashboards/:board',
+    section: 'dashboards',
+    title: 'דשבורד',
+    render: (params) => <DashboardsPage board={params.board ?? null} />,
   },
   {
     path: '/prompt',

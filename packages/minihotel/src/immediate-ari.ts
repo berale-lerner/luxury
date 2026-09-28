@@ -88,7 +88,7 @@ const parser = new XMLParser({
   attributeNamePrefix: '',
   parseAttributeValue: false,
   // One room type, or one board, must still be a list.
-  isArray: (name) => name === 'RoomType' || name === 'price',
+  isArray: (name, _path, _leaf, isAttribute) => !isAttribute && (name === 'RoomType' || name === 'price'),
 });
 
 const number = z.string().trim().regex(/^-?\d+(\.\d+)?$/).transform(Number);

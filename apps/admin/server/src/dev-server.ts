@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
 import { createMiniHotelClient, SANDBOX_ARI_URL } from '@luxury/minihotel';
-import { createAvailabilityService } from './availability/week.js';
+import { createDashboards } from './dashboards/create.js';
 import { buildApp } from './app.js';
 import { createPool } from './db.js';
 import { createDestinationResolver } from './conversations/destination.js';
@@ -63,9 +63,9 @@ const pool = createPool(config.DATABASE_URL);
 const app = buildApp({
   pool,
   logLevel: 'info',
-  availability:
+  dashboards:
     config.MINIHOTEL_USERNAME && config.MINIHOTEL_PASSWORD && config.MINIHOTEL_HOTEL_ID
-      ? createAvailabilityService({
+      ? createDashboards({
           client: createMiniHotelClient({
             credentials: {
               username: config.MINIHOTEL_USERNAME,

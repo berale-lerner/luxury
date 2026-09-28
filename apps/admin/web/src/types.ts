@@ -118,3 +118,30 @@ export interface AvailabilityWeek {
   currency: string;
   roomTypes: RoomTypeWeek[];
 }
+
+/** One reservation in one room, on the "today" board. */
+export interface StayRow {
+  reservationNumber: string;
+  guestName: string;
+  /** Null when no room is assigned yet. */
+  roomNumber: string | null;
+  roomTypeName: string | null;
+  arrival: string;
+  departure: string;
+  nights: number;
+  status: string;
+}
+
+export interface RoomRow {
+  roomNumber: string;
+  roomTypeName: string;
+}
+
+export interface TodayBoard {
+  date: string;
+  arrivals: StayRow[];
+  departures: StayRow[];
+  stayovers: StayRow[];
+  vacant: RoomRow[];
+  closed: RoomRow[];
+}

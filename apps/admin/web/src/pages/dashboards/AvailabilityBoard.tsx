@@ -1,34 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError } from '../../api';
+import { api } from '../../api';
+import { explainFailure, type DashboardFailure } from './failures';
+import { FailureNotice } from './FailureNotice';
 import type { AvailabilityWeek } from '../../types';
-
-/**
- * Why the week could not be shown, in words the reader can act on.
- *
- * The first use of this screen is finding out whether MiniHotel accepts our
- * server at all, so each failure says who fixes it.
- */
-const FAILURE: Record<string, string> = {
-  not_configured: 'אין חיבור ל-MiniHotel בסביבה הזו: לא הוגדרו פרטי התחברות.',
-  ip_not_authorized:
-    'MiniHotel חוסם את כתובת ה-IP של השרת. צריך לבקש מהתמיכה שלהם להוסיף אותה ל-whitelist.',
-  auth_failed: 'MiniHotel דחה את שם המשתמש, הסיסמה או קוד המלון.',
-  vendor_error: 'MiniHotel החזיר שגיאה.',
-  timeout: 'MiniHotel לא ענה בזמן.',
-  unreachable: 'אין חיבור לשרת של MiniHotel.',
-  bad_response: 'MiniHotel ענה בפורמט לא צפוי.',
-  http_error: 'MiniHotel ענה בפורמט לא צפוי.',
-};
-
-function explain(cause: unknown): { message: string; code?: string } {
-  const message =
-    cause instanceof ApiError && cause.code && FAILURE[cause.code]
-      ? FAILURE[cause.code]!
-      : 'טעינת הזמינות נכשלה.';
-  // The vendor's own code, when there is one, for looking up in MINIHOTEL.md.
-  const code = cause instanceof ApiError ? cause.vendorCode : undefined;
-  return code ? { message, code } : { message };
-}
 
 function addDays(date: string, days: number): string {
   const at = new Date(`${date}T00:00:00Z`);
@@ -50,11 +24,11 @@ function label(date: string) {
  * Each cell is the number of units still free that night. Nothing is stored
  * on our side; every open (after a short server-side cache) is a live call.
  */
-export function AvailabilityPage() {
+export function AvailabilityBoard() {
   const [from, setFrom] = useState<string | undefined>(undefined);
   const [week, setWeek] = useState<AvailabilityWeek | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<{ message: string; code?: string } | null>(null);
+  const [error, setError] = useState<DashboardFailure | null>(null);
 
   const load = useCallback(async (start: string | undefined) => {
     setLoading(true);
@@ -62,7 +36,7 @@ export function AvailabilityPage() {
     try {
       setWeek(await api.availability(start));
     } catch (cause) {
-      setError(explain(cause));
+      setError(explainFailure(cause));
     } finally {
       setLoading(false);
     }
@@ -80,18 +54,13 @@ export function AvailabilityPage() {
   const nights = week ? Array.from({ length: 7 }, (_, i) => addDays(week.from, i)) : [];
 
   return (
-    <div className="page">
-      <header className="head">
-        <h1>זמינות</h1>
-        {week && (
-          <span className="sub" dir="ltr">
-            {week.from} – {week.to}
-          </span>
-        )}
-      </header>
-
-      <div className="page-body">
+    <>
         <div className="row-actions">
+          {week && (
+            <span className="hint" dir="ltr">
+              {week.from} – {week.to}
+            </span>
+          )}
           <button type="button" className="link-btn" disabled={loading || !week} onClick={() => shift(-7)}>
             → שבוע קודם
           </button>
@@ -108,22 +77,7 @@ export function AvailabilityPage() {
           </button>
         </div>
 
-        {error && (
-          <div className="notice error" role="alert">
-            <p>
-              {error.message}
-              {error.code && (
-                <>
-                  {' '}
-                  קוד שגיאה: <span dir="ltr">{error.code}</span>
-                </>
-              )}
-            </p>
-            <button type="button" onClick={() => void load(from)} disabled={loading}>
-              לנסות שוב
-            </button>
-          </div>
-        )}
+        {error && <FailureNotice failure={error} busy={loading} onRetry={() => void load(from)} />}
 
         {loading && !week && !error && <p className="hint">טוען מ-MiniHotel…</p>}
 
@@ -195,7 +149,6 @@ export function AvailabilityPage() {
             אף לילה בשבוע לא מופיעה בטבלה.
           </p>
         )}
-      </div>
-    </div>
+    </>
   );
 }

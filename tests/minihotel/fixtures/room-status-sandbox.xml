@@ -1,0 +1,69 @@
+<AvailRaters>
+<Hotel id="sandbox" Name_h="Test Hotel MiniHotel" Name_e="Test Hotel MiniHotel" />
+<DateRange from="2026-09-26" to="2026-10-02" />
+<Rooms>
+<Room Number="01" Rmtype="DBL" />
+<Room Number="02" Rmtype="DBL" />
+<Room Number="101" Rmtype="DBL" />
+<Room Number="102" Rmtype="DBL" />
+<Room Number="103" Rmtype="Twin" />
+<Room Number="104" Rmtype="Twin" />
+<Room Number="301" Rmtype="Twin" />
+<Room Number="302" Rmtype="DBL" />
+<Room Number="303" Rmtype="DBL" />
+<Room Number="304" Rmtype="DBL" />
+<Room Number="401" Rmtype="Executive" />
+<Room Number="501" Rmtype="SNG" />
+<Room Number="605" Rmtype="DBL" />
+<Room Number="606" Rmtype="APT_SEA" />
+<Room Number="701" Rmtype="2BEDAPT" />
+<Room Number="808" Rmtype="DBL" />
+<Room Number="809" Rmtype="SNG" />
+<Room Number="901" Rmtype="2BEDAPT" />
+<Room Number="902" Rmtype="TRP" />
+<Room Number="903" Rmtype="2BEDAPT" />
+<Room Number="904" Rmtype="2BEDAPT" />
+<Room Number="9900" Rmtype="Double" />
+<Room Number="9901" Rmtype="Double" />
+<Room Number="9902" Rmtype="Double" />
+<Room Number="9903" Rmtype="Suite" />
+<Room Number="9904" Rmtype="Suite" />
+<Room Number="9905" Rmtype="Suite" />
+<Room Number="Nemanja" Rmtype="TRP" />
+ </Rooms>
+<RoomsTypes>
+<RoomType Code="2BEDAPT" Description="Two bedroom apartment" />
+<RoomType Code="APT_SEA" Description="Apartment Sea View" />
+<RoomType Code="DBL" Description="Double room" />
+<RoomType Code="Executive" Description="Executive Room" />
+<RoomType Code="SNG" Description="MEGA TEST 2 Y 3" />
+<RoomType Code="Suite" Description="Suite" />
+<RoomType Code="TEST-DOUBLE" Description="TEST HAB DOBLE PERO QUE ACEPTA 3 GG" />
+<RoomType Code="TRP" Description="Triple Room" />
+<RoomType Code="Twin" Description="Twin Room" />
+ </RoomsTypes>
+<Reservations>
+ <Reservation 
+ ResNumber="007004628" Namep="Guest1" Namef="Family1" RoomNumber="904" RoomType="2BEDAPT" FromYmd="20260928" ToYmd="20260929" RoomsQty="0001" Status="OK" Board="BB" />
+ <Reservation 
+ ResNumber="007004641" Namep="Guest2" Namef="Family2" RoomNumber="103" RoomType="Twin" FromYmd="20260928" ToYmd="20260929" RoomsQty="0001" Status="OK" Board="BB" />
+ <Reservation 
+ ResNumber="007004641" Namep="Guest3" Namef="Family3" RoomNumber="101" RoomType="DBL" FromYmd="20260928" ToYmd="20260929" RoomsQty="0001" Status="OK" Board="BB" />
+ <Reservation 
+ ResNumber="007004645" Namep="Guest4" Namef="Family4" RoomNumber="103" RoomType="Twin" FromYmd="20260930" ToYmd="20261001" RoomsQty="0001" Status="OK" Board="BB" />
+ <Reservation 
+ ResNumber="007004645" Namep="Guest5" Namef="Family5" RoomNumber="301" RoomType="Twin" FromYmd="20260930" ToYmd="20261001" RoomsQty="0001" Status="OK" Board="BB" />
+ <Reservation 
+ ResNumber="007004302" Namep="Guest6" Namef="Family6" RoomNumber="01" RoomType="DBL" FromYmd="20261001" ToYmd="20261003" RoomsQty="0001" Status="OK4" Board="BB" />
+ <Reservation 
+ ResNumber="007004647" Namep="Guest7" Namef="Family7" RoomNumber="302" RoomType="DBL" FromYmd="20261001" ToYmd="20261004" RoomsQty="0001" Status="OK4" Board="CC" />
+ <Reservation 
+ ResNumber="007004420" Namep="Guest8" Namef="Family8" RoomNumber="02" RoomType="DBL" FromYmd="20261001" ToYmd="20261005" RoomsQty="0001" Status="OK4" Board="RO" />
+ <Reservation 
+ ResNumber="007004421" Namep="Guest9" Namef="Family9" RoomNumber="101" RoomType="DBL" FromYmd="20261001" ToYmd="20261005" RoomsQty="0001" Status="OK4" Board="RO" />
+ <Reservation 
+ ResNumber="007004422" Namep="Guest10" Namef="Family10" RoomNumber="102" RoomType="DBL" FromYmd="20261001" ToYmd="20261005" RoomsQty="0001" Status="OK4" Board="RO" />
+ <Reservation 
+ ResNumber="007004648" Namep="Guest11" Namef="Family11" RoomNumber="" RoomType="" FromYmd="20260928" ToYmd="20261002" RoomsQty="0001" Status="WL" Board="CC" />
+ </Reservations>
+</AvailRaters>

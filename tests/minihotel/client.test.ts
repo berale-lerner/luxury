@@ -422,3 +422,118 @@ describe('an Immediate ARI answer from production', () => {
     });
   });
 });
+
+describe('a room status request', () => {
+  it('asks for response type 03 over the nights given, under the documented <AvailRaters> root', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('room-status-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    await client.roomStatus({ from: '2026-09-27', to: '2026-09-28' });
+
+    const sent = stub.received[0]!;
+    expect(sent).toContain('<AvailRaters>');
+    expect(sent).toContain(
+      '<Authentication username="atitlan-test" password="p&quot;a&amp;s&lt;s&gt;&apos;|!/" ResponseType="03" />',
+    );
+    expect(sent).toContain('<DateRange from="2026-09-27" to="2026-09-28" />');
+  });
+
+  it('refuses a range that ends before it starts, before anything is sent', async () => {
+    const stub = await stubMiniHotel({ body: '' });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    await expect(client.roomStatus({ from: '2026-09-28', to: '2026-09-27' })).rejects.toThrow(RangeError);
+    expect(stub.received).toEqual([]);
+  });
+});
+
+describe('a room status response', () => {
+  const RANGE = { from: '2026-09-26', to: '2026-10-02' };
+
+  it('parses the recorded sandbox answer: rooms, type names and reservations', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('room-status-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const status = await client.roomStatus(RANGE);
+
+    expect(status.rooms).toHaveLength(28);
+    expect(status.rooms[0]).toEqual({ number: '01', roomType: 'DBL' });
+    expect(status.roomTypes).toContainEqual({ code: 'Twin', description: 'Twin Room' });
+    expect(status.reservations).toHaveLength(11);
+    expect(status.reservations[0]).toEqual({
+      reservationNumber: '007004628',
+      guestName: 'Guest1 Family1',
+      roomNumber: '904',
+      roomType: '2BEDAPT',
+      arrival: '2026-09-28',
+      departure: '2026-09-29',
+      status: 'OK',
+      board: 'BB',
+    });
+  });
+
+  it('lists a reservation for two rooms once per room', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('room-status-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const rows = (await client.roomStatus(RANGE)).reservations.filter((r) => r.reservationNumber === '007004641');
+    expect(rows.map((r) => r.roomNumber)).toEqual(['103', '101']);
+  });
+
+  it('reads a reservation with no room assigned as null, not an empty string', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('room-status-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const waiting = (await client.roomStatus(RANGE)).reservations.find((r) => r.status === 'WL')!;
+    expect([waiting.roomNumber, waiting.roomType]).toEqual([null, null]);
+  });
+
+  it('keeps only the fields it names', async () => {
+    const stub = await stubMiniHotel({ body: await fixture('room-status-sandbox.xml') });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const status = await client.roomStatus(RANGE);
+    expect(Object.keys(status).sort()).toEqual(['hotelId', 'reservations', 'roomTypes', 'rooms']);
+    // RoomsQty is sent and dropped: one row per room already says it.
+    expect(Object.keys(status.reservations[0]!).sort()).toEqual([
+      'arrival',
+      'board',
+      'departure',
+      'guestName',
+      'reservationNumber',
+      'roomNumber',
+      'roomType',
+      'status',
+    ]);
+  });
+
+  it('reads empty containers as empty lists', async () => {
+    const body = `<AvailRaters>
+<Hotel id="luxury50" Name_h="x" Name_e="x" />
+<DateRange from="2026-09-27" to="2026-09-28" />
+<Rooms>
+<Room Number="1" Rmtype="DUBAI" />
+</Rooms>
+<RoomsTypes>
+</RoomsTypes>
+<Reservations>
+</Reservations>
+</AvailRaters>`;
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const status = await client.roomStatus({ from: '2026-09-27', to: '2026-09-28' });
+    expect([status.rooms.length, status.roomTypes, status.reservations]).toEqual([1, [], []]);
+  });
+
+  it('never carries a guest name in a shape error', async () => {
+    const body = (await fixture('room-status-sandbox.xml')).replace('FromYmd="20260928"', 'FromYmd="soon"');
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const error = await failureOf(client.roomStatus(RANGE));
+    expect(error.failure).toBe('bad_response');
+    expect(error.detail!.join('\n')).toMatch(/AvailRaters\.Reservations/);
+    expect(JSON.stringify(error.detail)).not.toMatch(/Guest\d|Family\d|soon/);
+  });
+});

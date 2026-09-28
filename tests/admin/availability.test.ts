@@ -20,7 +20,7 @@ import {
   addDays,
   createAvailabilityService,
   type AvailabilityService,
-} from '../../apps/admin/server/src/availability/week.js';
+} from '../../apps/admin/server/src/dashboards/availability.js';
 import { loadConfig, miniHotelSettings } from '../../apps/admin/server/src/config.js';
 import { urlForRole } from '../helpers/config.js';
 
@@ -55,6 +55,9 @@ function fakeClient(overrides: { fail?: MiniHotelError; omit?: { id: string; on:
     },
     async bulkAri() {
       throw new Error('the availability screen does not use Bulk ARI');
+    },
+    async roomStatus() {
+      throw new Error('the availability screen does not use room status');
     },
   };
   return { client, asked };
@@ -231,7 +234,10 @@ describe('the endpoint', () => {
   };
 
   async function get(url: string, availability: AvailabilityService | null) {
-    const app = buildApp({ pool, session, messaging, availability, logLevel: 'silent' });
+    const dashboards = availability
+      ? { availability, today: { today: () => '2026-09-28', board: () => Promise.reject(new Error('unused')) } }
+      : null;
+    const app = buildApp({ pool, session, messaging, dashboards, logLevel: 'silent' });
     await app.ready();
     try {
       return await app.inject({ method: 'GET', url });
@@ -265,7 +271,7 @@ describe('the endpoint', () => {
 
   it("serves a viewer the week from today when no date is given", async () => {
     const fake = fakeClient();
-    const response = await get('/api/availability', serviceWith(fake.client));
+    const response = await get('/api/dashboards/availability', serviceWith(fake.client));
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -279,7 +285,7 @@ describe('the endpoint', () => {
 
   it('starts from the date asked for', async () => {
     const fake = fakeClient();
-    await get('/api/availability?from=2026-10-05', serviceWith(fake.client));
+    await get('/api/dashboards/availability?from=2026-10-05', serviceWith(fake.client));
     expect(fake.asked[0]!.from).toBe('2026-10-05');
   });
 
@@ -291,20 +297,20 @@ describe('the endpoint', () => {
     ['text after the date', '2026-10-05T00:00'],
   ])('refuses %s without calling MiniHotel', async (_label, from) => {
     const fake = fakeClient();
-    const response = await get(`/api/availability?from=${encodeURIComponent(from)}`, serviceWith(fake.client));
+    const response = await get(`/api/dashboards/availability?from=${encodeURIComponent(from)}`, serviceWith(fake.client));
     expect(response.statusCode).toBe(400);
     expect(fake.asked).toEqual([]);
   });
 
   it('says so when this environment has no MiniHotel credentials', async () => {
-    const response = await get('/api/availability', null);
+    const response = await get('/api/dashboards/availability', null);
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ error: 'not_configured' });
   });
 
   it('names an address missing from the allowlist, with the vendor code', async () => {
     const fake = fakeClient({ fail: new MiniHotelError('ip_not_authorized', 'A01') });
-    const response = await get('/api/availability', serviceWith(fake.client));
+    const response = await get('/api/dashboards/availability', serviceWith(fake.client));
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: 'ip_not_authorized', code: 'A01' });
@@ -312,7 +318,7 @@ describe('the endpoint', () => {
 
   it('names a timeout, which has no vendor code', async () => {
     const fake = fakeClient({ fail: new MiniHotelError('timeout') });
-    const response = await get('/api/availability', serviceWith(fake.client));
+    const response = await get('/api/dashboards/availability', serviceWith(fake.client));
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({ error: 'timeout', code: null });

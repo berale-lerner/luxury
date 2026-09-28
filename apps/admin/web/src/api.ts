@@ -10,6 +10,7 @@ import type {
   ConversationSummary,
   Me,
   MessageCursor,
+  TodayBoard,
 } from './types';
 
 /**
@@ -188,7 +189,10 @@ export const api = {
 
   /** Seven nights from `from`, or from the hotel's today when omitted. */
   availability: (from?: string) =>
-    request<AvailabilityWeek>(`/api/availability${from ? `?from=${encodeURIComponent(from)}` : ''}`),
+    request<AvailabilityWeek>(`/api/dashboards/availability${from ? `?from=${encodeURIComponent(from)}` : ''}`),
+
+  /** Arrivals, departures, stayovers and free rooms for the hotel's today. */
+  today: () => request<TodayBoard>('/api/dashboards/today'),
 
   setAgentMuted: (id: string, muted: boolean) =>
     request<{ muted: boolean }>(`/api/conversations/${id}/agent`, {

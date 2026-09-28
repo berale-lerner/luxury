@@ -12,5 +12,12 @@ export {
   type StayPrice,
   type StayRoomType,
 } from './immediate-ari.js';
+export {
+  type HotelRoom,
+  type RoomReservation,
+  type RoomStatus,
+  type RoomStatusQuery,
+  type RoomTypeName,
+} from './room-status.js';
 export { type AriDay, type AriRoomType, type BulkAri, type BulkAriQuery } from './bulk-ari.js';
 export { MiniHotelError, type MiniHotelFailure } from './errors.js';

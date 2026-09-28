@@ -64,7 +64,7 @@ const parser = new XMLParser({
   // Everything as strings; the schema below decides what is a number.
   parseAttributeValue: false,
   // A hotel with one room type, or a one-night range, must still be a list.
-  isArray: (name) => name === 'RoomType' || name === 'Day',
+  isArray: (name, _path, _leaf, isAttribute) => !isAttribute && (name === 'RoomType' || name === 'Day'),
 });
 
 const yesNo = z.enum(['Yes', 'No']).transform((value) => value === 'Yes');

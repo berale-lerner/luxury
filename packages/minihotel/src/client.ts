@@ -1,5 +1,6 @@
 import { bulkAriRequest, parseBulkAri, type BulkAri, type BulkAriQuery } from './bulk-ari.js';
 import { MiniHotelError, vendorErrorIn } from './errors.js';
+import { parseRoomStatus, roomStatusRequest, type RoomStatus, type RoomStatusQuery } from './room-status.js';
 import { immediateAriRequest, parseImmediateAri, type ImmediateAri, type ImmediateAriQuery } from './immediate-ari.js';
 
 export const PRODUCTION_ARI_URL = 'https://api.minihotel.cloud/gds';
@@ -33,6 +34,11 @@ export interface MiniHotelClient {
    * by MiniHotel (MINIHOTEL.md).
    */
   bulkAri(query: BulkAriQuery): Promise<BulkAri>;
+  /**
+   * Every room, and the reservations occupying a night in the range — with
+   * guest names. "Real-Time Room Status Inquiry" in MiniHotel's docs.
+   */
+  roomStatus(query: RoomStatusQuery): Promise<RoomStatus>;
 }
 
 /**
@@ -89,6 +95,10 @@ export function createMiniHotelClient(options: MiniHotelClientOptions): MiniHote
 
     async bulkAri(query) {
       return parseBulkAri(await post(bulkAriRequest(options.credentials, query)));
+    },
+
+    async roomStatus(query) {
+      return parseRoomStatus(await post(roomStatusRequest(options.credentials, query)));
     },
   };
 }

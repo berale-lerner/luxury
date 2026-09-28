@@ -1,15 +1,10 @@
 import type { MiniHotelClient } from '@luxury/minihotel';
+import { addDays, createTtlCache, DASHBOARD_TTL_MS, todayIn } from './ttl-cache.js';
+
+export { addDays };
 
 /** How many nights the screen shows. */
 export const WEEK_NIGHTS = 7;
-
-/**
- * How long one answer is reused. The screen is opened by a handful of people,
- * but each open is a vendor call, and a refresh loop or a stuck tab should
- * not become a stream of them (CLAUDE.md: rate limiting on every external
- * call).
- */
-const DEFAULT_TTL_MS = 30_000;
 
 export interface NightAvailability {
   readonly date: string;
@@ -54,13 +49,6 @@ export interface AvailabilityServiceOptions {
   readonly ttlMs?: number;
 }
 
-/** `YYYY-MM-DD` plus a number of days, without a time zone to get wrong. */
-export function addDays(date: string, days: number): string {
-  const at = new Date(`${date}T00:00:00Z`);
-  at.setUTCDate(at.getUTCDate() + days);
-  return at.toISOString().slice(0, 10);
-}
-
 /**
  * Seven nights of availability for every room type, as the manager sees it.
  *
@@ -70,15 +58,7 @@ export function addDays(date: string, days: number): string {
  */
 export function createAvailabilityService(options: AvailabilityServiceOptions): AvailabilityService {
   const now = options.now ?? (() => new Date());
-  const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
-  const dateIn = new Intl.DateTimeFormat('en-CA', {
-    timeZone: options.timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-
-  const cache = new Map<string, { readonly at: number; readonly week: Promise<AvailabilityWeek> }>();
+  const cache = createTtlCache<AvailabilityWeek>({ ttlMs: options.ttlMs ?? DASHBOARD_TTL_MS, now });
 
   /**
    * One Immediate ARI call per night, each a one-night stay.
@@ -123,23 +103,7 @@ export function createAvailabilityService(options: AvailabilityServiceOptions): 
   }
 
   return {
-    today: () => dateIn.format(now()),
-
-    week(from) {
-      const at = now().getTime();
-      for (const [key, entry] of cache) {
-        if (at - entry.at >= ttlMs) cache.delete(key);
-      }
-      const cached = cache.get(from);
-      if (cached) return cached.week;
-
-      // The promise is cached, not the value, so two requests arriving
-      // together make one vendor call. A failure is removed at once: the
-      // point of opening the screen may be to see whether it works now.
-      const week = fetchWeek(from);
-      cache.set(from, { at, week });
-      week.catch(() => cache.delete(from));
-      return week;
-    },
+    today: todayIn(options.timeZone, now),
+    week: (from) => cache.get(from, () => fetchWeek(from)),
   };
 }

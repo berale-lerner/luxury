@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
 import { createMiniHotelClient } from '@luxury/minihotel';
 import { loadConfig, miniHotelSettings } from './config.js';
-import { createAvailabilityService } from './availability/week.js';
+import { createDashboards } from './dashboards/create.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
 import { createAuth, createSessionReader, registerAuthRoutes } from './auth/better-auth.js';
@@ -18,8 +18,8 @@ const app = buildApp({
   pool,
   session: createSessionReader(auth),
   logLevel: config.LOG_LEVEL,
-  availability: miniHotel
-    ? createAvailabilityService({
+  dashboards: miniHotel
+    ? createDashboards({
         client: createMiniHotelClient({
           credentials: miniHotel.credentials,
           ...(miniHotel.ariUrl ? { ariUrl: miniHotel.ariUrl } : {}),

@@ -558,10 +558,46 @@ input, textarea { font: inherit; color: inherit; }
 }
 .version-row:last-child { border-bottom: 0; }
 
+/* ── Dashboards ───────────────────────────────────────────────────────── */
+
+.page-body.dashboards > * { max-width: 960px; }
+.dashboard-body { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* flex-shrink: 0 — a scrolling child of a flex column otherwise collapses to nothing. */
+.tabs { display: flex; flex-shrink: 0; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tab {
+  padding: 8px 14px; margin-bottom: -1px;
+  color: var(--text-dim); text-decoration: none; font-weight: 600; white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-current='page'] { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── Today ────────────────────────────────────────────────────────────── */
+
+.today-date { font-weight: 600; }
+.today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.today-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.today-section h2 { margin: 0; font-size: 15px; }
+.today-section h2 .sub { color: var(--text-dim); font-weight: 400; margin-inline-start: 4px; }
+.today-list, .today-rooms { list-style: none; margin: 0; padding: 0; }
+.today-row {
+  display: grid; grid-template-columns: 92px 1fr auto; gap: 10px; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--border);
+}
+.today-row:last-child { border-bottom: 0; }
+.today-room { display: flex; flex-direction: column; min-width: 0; }
+.today-room-number { font-weight: 700; }
+.today-room .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-guest { display: flex; flex-direction: column; min-width: 0; }
+.today-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.today-rooms li { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+
 /* ── Availability ─────────────────────────────────────────────────────── */
 
 /* The table scrolls inside its card, never the page, on a narrow screen. */
-.page-body > .availability { max-width: 960px; padding: 0; overflow-x: auto; }
+.dashboard-body > .availability { padding: 0; overflow-x: auto; }
 .availability-grid { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .availability-grid th,
 .availability-grid td {
