@@ -196,6 +196,43 @@ otaInfo:  פרטי הפורטל
 
 ---
 
+## Booking Engine — מתועד, לא בשימוש
+
+מנוע ההזמנות של MiniHotel: דף שבו האורח בוחר דירה, ממלא פרטים ומשלם — הכול במערכת של MiniHotel. **החלטה (28 בספטמבר 2026): מתעדים בלבד, לא תומכים כרגע.**
+
+למה שווה לזכור אותו: זו הדרך הטבעית לתת לבוט "לסגור" הזמנה בלי שהסוכן ייגע ביצירת הזמנה או בתשלום. הבוט בודק זמינות ושולח לאורח קישור עם התאריכים ממולאים; ההזמנה והתשלום קורים אצל MiniHotel. זה מתיישב עם "Sensitive actions" ב-CLAUDE.md.
+
+| פריט | ערך |
+|---|---|
+| Hotel ID | `4FB64388B2C2F02F93F8B06C91639D17` |
+| Instance ID | `8003b551-4186-4d01-95ff-67224fdcfb46` |
+| שרת | **`frame2.hotelpms.io`** (LATAM) |
+
+המזהים לא סודיים: הם מופיעים בכתובת של כל דף הזמנה ובקוד ההטמעה.
+
+**השרת:** בתיעוד `frame1` הוא International ו-`frame2` הוא LATAM. Avremi שאל את MiniHotel באיזה להשתמש ולא קיבל תשובה. נבדק ב-28 בספטמבר: ב-`frame2` המלון מופיע עם הדירות והמחירים; ב-`frame1` הדף נטען עם 0 חדרים.
+
+**קישור ישיר** ([booking-engine-parameters](https://minihotel.readme.io/reference/booking-engine-parameters)):
+
+```
+https://frame2.hotelpms.io/BookingFrameClient/hotel/{HotelID}/{InstanceID}/book/rooms?[parameters]
+```
+
+| פרמטר | פורמט | דוגמה |
+|---|---|---|
+| `from`, `to` | `YYYYMMDD` (בלי מקפים, שונה מה-API) | `from=20261012&to=20261014` |
+| `nAdults`, `nChilds`, `nBabies` | מספר | `nAdults=2` |
+| `roomType` | קוד סוג חדר | `roomType=DUBAI` |
+| `currency` | ISO | `currency=USD` |
+| `language` | locale | `language=he-IL` |
+| `rp` | קוד rate plan (מהמלון) | |
+
+כל הפרמטרים אופציונליים. **הטמעה:** אותה כתובת בתוך `<iframe>`, עם שני סקריפטים של MiniHotel ([embed-snippet](https://minihotel.readme.io/reference/embed-snippet)).
+
+⚠️ **מה רואה אורח היום** (נבדק ב-28 בספטמבר): בדירה `Bali` מופיע הכיתוב "Test Room" ותיאור lorem ipsum; מופיעה דירה בשם "Koh Samui" (כנראה `KOSMIO`); חלק מהטקסטים בספרדית ("PRECIOS EN USD"). אלה הגדרות תוכן ב-MiniHotel, לא אצלנו — כדאי שהבעלים יעבור עליהן לפני שמשתמשים בקישור.
+
+---
+
 ## מה אנחנו משתמשים בו ומה לא
 
 | ✅ בשימוש | ⛔ לא נוגעים |
@@ -234,7 +271,7 @@ otaInfo:  פרטי הפורטל
 | Rate codes | `*ALL`, `USD` |
 | IP ב-whitelist | `137.184.104.26` — שרת proxy של האינטגרציה ב-Base44. **Base44 יוצאת משימוש; לבקש להסיר** |
 | Webhooks | מופעלים. נשלחים ל-endpoint של Base44 עם Basic Auth. נרשמו ארבעה אירועים: שלושת אירועי ההזמנה ו-`room.occupancy.updated` (לא מופיע בסעיף ה-Webhooks למטה, לאמת בתיעוד). ⚠️ ה-URL נשלח אליהם פעם אחת עם `%0A` (שורה חדשה) בסופו; לא ידוע איזו גרסה נרשמה |
-| Booking Engine | יש Hotel ID ו-Instance ID (במייל). לא בשימוש אצלנו |
+| Booking Engine | מוגדר ופעיל. לא בשימוש אצלנו (ראו "Booking Engine") |
 
 ⚠️ **הונפקו שני זוגות credentials שונים ל-production:** שם משתמש אחד מהתמיכה באנגלית (Arkady), ושם משתמש אחר מהתמיכה ב-LATAM (Yasmany), שנשלח יחד עם ה-IP. לא ברור איזה זוג שייך לאיזה API, והאם ה-whitelist קשור למשתמש. צריך לברר לפני שמחברים.
 
