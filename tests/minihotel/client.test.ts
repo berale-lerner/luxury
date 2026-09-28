@@ -370,3 +370,36 @@ describe('an Immediate ARI response', () => {
     expect([error.failure, error.code]).toEqual(['vendor_error', '303']);
   });
 });
+
+describe('a response that does not match', () => {
+  const STAY = { from: '2026-10-04', to: '2026-10-05', adults: 1, rateCode: 'USD' };
+
+  it('says which element was wrong, by name and type, without any value from the answer', async () => {
+    const body = (await fixture('immediate-ari-sandbox.xml')).replace(
+      '<Inventory Allocation="2" maxavail="9" />',
+      '<Inventory Allocation="SECRET-VALUE" />',
+    );
+    const stub = await stubMiniHotel({ body });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const error = await failureOf(client.immediateAri(STAY));
+
+    expect(error.failure).toBe('bad_response');
+    expect(error.detail).toContain('root elements: ?xml,AvailRaters');
+    expect(error.detail!.join('\n')).toMatch(/AvailRaters\.RoomType\.0\.Inventory\.Allocation: invalid_string/);
+    expect(error.detail!.join('\n')).toMatch(
+      /AvailRaters\.RoomType\.0\.Inventory\.maxavail: invalid_type expected string, got undefined/,
+    );
+    expect(JSON.stringify(error.detail)).not.toContain('SECRET-VALUE');
+  });
+
+  it('names the root elements when the answer is some other document', async () => {
+    const stub = await stubMiniHotel({ body: '<Response><Message>Hello</Message></Response>' });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const error = await failureOf(client.immediateAri(STAY));
+
+    expect(error.detail![0]).toBe('root elements: Response');
+    expect(JSON.stringify(error.detail)).not.toContain('Hello');
+  });
+});

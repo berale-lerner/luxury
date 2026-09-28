@@ -1,6 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { z } from 'zod';
-import { MiniHotelError } from './errors.js';
+import { MiniHotelError, shapeProblems } from './errors.js';
 import { escapeAttribute, isDate } from './xml.js';
 
 /** One room type on one night, as MiniHotel's Bulk ARI reports it. */
@@ -131,10 +131,12 @@ export function parseBulkAri(body: string): BulkAri {
   try {
     document = parser.parse(body);
   } catch {
-    throw new MiniHotelError('bad_response');
+    throw new MiniHotelError('bad_response', undefined, undefined, ['not well-formed XML']);
   }
   const parsed = responseSchema.safeParse(document);
-  if (!parsed.success) throw new MiniHotelError('bad_response');
+  if (!parsed.success) {
+    throw new MiniHotelError('bad_response', undefined, undefined, shapeProblems(parsed.error.issues, document));
+  }
 
   const { Hotel, RoomTypes } = parsed.data.AvailRaters;
   const roomTypes = RoomTypes ? RoomTypes.RoomType : [];

@@ -51,7 +51,7 @@ export function registerAvailabilityRoutes(app: FastifyInstance, deps: Availabil
     try {
       const week = await service.week(from);
       request.log.info(
-        { event: 'minihotel.bulk_ari', from, ok: true, ms: Date.now() - started },
+        { event: 'minihotel.availability_week', from, ok: true, ms: Date.now() - started },
         'availability loaded',
       );
       return reply.send({ today, ...week });
@@ -59,13 +59,15 @@ export function registerAvailabilityRoutes(app: FastifyInstance, deps: Availabil
       if (!(error instanceof MiniHotelError)) throw error;
       request.log.warn(
         {
-          event: 'minihotel.bulk_ari',
+          event: 'minihotel.availability_week',
           from,
           ok: false,
           ms: Date.now() - started,
           failure: error.failure,
           code: error.code,
           status: error.status,
+          // Element names and types only, never values (errors.ts).
+          detail: error.detail,
         },
         'availability failed',
       );

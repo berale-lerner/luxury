@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import { z } from 'zod';
 import { escapeAttribute, isDate } from './xml.js';
-import { MiniHotelError } from './errors.js';
+import { MiniHotelError, shapeProblems } from './errors.js';
 
 export interface ImmediateAriQuery {
   /** Arrival, `YYYY-MM-DD`. */
@@ -127,10 +127,12 @@ export function parseImmediateAri(body: string): ImmediateAri {
   try {
     document = parser.parse(body);
   } catch {
-    throw new MiniHotelError('bad_response');
+    throw new MiniHotelError('bad_response', undefined, undefined, ['not well-formed XML']);
   }
   const parsed = responseSchema.safeParse(document);
-  if (!parsed.success) throw new MiniHotelError('bad_response');
+  if (!parsed.success) {
+    throw new MiniHotelError('bad_response', undefined, undefined, shapeProblems(parsed.error.issues, document));
+  }
 
   const { Hotel, RoomType } = parsed.data.AvailRaters;
   return {

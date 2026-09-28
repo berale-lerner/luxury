@@ -33,6 +33,11 @@ export class MiniHotelError extends Error {
     readonly failure: MiniHotelFailure,
     readonly code?: string,
     readonly status?: number,
+    /**
+     * For `bad_response`: which part of the answer did not match, described
+     * by element and attribute names and types only — see shapeProblems().
+     */
+    readonly detail?: readonly string[],
   ) {
     super(code ? `MiniHotel ${failure} (code ${code})` : `MiniHotel ${failure}`);
     this.name = 'MiniHotelError';
@@ -56,4 +61,26 @@ export function vendorErrorIn(body: string): MiniHotelError | null {
   if (IP_CODES.has(code)) return new MiniHotelError('ip_not_authorized', code);
   if (AUTH_CODES.has(code)) return new MiniHotelError('auth_failed', code);
   return new MiniHotelError('vendor_error', code);
+}
+
+/**
+ * Why a document did not match a schema, safe to log.
+ *
+ * Paths and expected/received *types* only. A value never appears: Zod puts
+ * the offending value in the message of some issue kinds (an enum, a
+ * literal), so the message is not used at all.
+ */
+export function shapeProblems(
+  issues: readonly { path: readonly (string | number)[]; code: string; expected?: unknown; received?: unknown }[],
+  document: unknown,
+): string[] {
+  const root =
+    document && typeof document === 'object' ? Object.keys(document).join(',') || '(empty)' : typeof document;
+  const problems = issues.slice(0, 8).map((issue) => {
+    const where = issue.path.join('.') || '(root)';
+    const types =
+      issue.code === 'invalid_type' ? ` expected ${String(issue.expected)}, got ${String(issue.received)}` : '';
+    return `${where}: ${issue.code}${types}`;
+  });
+  return [`root elements: ${root}`, ...problems];
 }
