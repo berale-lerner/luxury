@@ -6,10 +6,16 @@
  * only part this service depends on.
  *
  * What is *not* here is as much of the point. Prompt caching, thinking and
- * effort, and — from the next slice — the shape of a tool call all differ
- * enough between providers that folding them in would produce an interface
- * that leaks its first implementation. They live in the adapter, which is
- * free to tune the provider it actually talks to.
+ * effort differ enough between providers that folding them in would produce
+ * an interface that leaks its first implementation. They live in the
+ * adapter, which is free to tune the provider it actually talks to.
+ *
+ * Tool calls are here, in the smallest shape both providers share: a
+ * definition (name, description, a flat JSON Schema), a call (id, name,
+ * arguments), a result (the call's id, text, whether it failed). What does
+ * not line up — one provider's older models issue no call id, and every
+ * provider needs the model's own turn echoed back verbatim — is carried as an
+ * opaque ProviderTurn that only the adapter that produced it reads.
  */
 
 export interface ConversationTurn {
@@ -17,9 +23,66 @@ export interface ConversationTurn {
   readonly text: string;
 }
 
+/** A tool the model may ask for. The model requests; the code decides. */
+export interface ToolDefinition {
+  /** `[a-z_]+`, the same on every provider. */
+  readonly name: string;
+  /** What the tool does and when to use it — the model reads this. */
+  readonly description: string;
+  /**
+   * A JSON Schema object describing the arguments. Kept flat and simple
+   * (strings, integers, required, no additional properties) because that is
+   * the subset both providers accept. It is advice to the model, never the
+   * validation: the tool validates what arrives regardless.
+   */
+  readonly parameters: Readonly<Record<string, unknown>>;
+}
+
+/** What the model asked for. `arguments` is untrusted input. */
+export interface ToolCall {
+  readonly id: string;
+  readonly name: string;
+  readonly arguments: unknown;
+}
+
+export interface ToolResult {
+  /** The id of the call this answers. */
+  readonly callId: string;
+  readonly name: string;
+  /** What the model reads back. JSON text, already shrunk by the tool. */
+  readonly content: string;
+  readonly isError: boolean;
+}
+
+/**
+ * The model's own turn, exactly as its provider returned it.
+ *
+ * Providers require it back verbatim on the next call — content blocks for
+ * one, parts carrying a signature the follow-up is rejected without for
+ * another (see each adapter). Nothing outside the adapter that produced it
+ * looks inside.
+ */
+export interface ProviderTurn {
+  readonly provider: string;
+  readonly payload: unknown;
+}
+
+/** One exchange inside a single reply: the model asked, the code answered. */
+export interface ToolRound {
+  readonly turn: ProviderTurn;
+  readonly results: readonly ToolResult[];
+}
+
 export interface ModelRequest {
   readonly systemPrompt: string;
   readonly turns: readonly ConversationTurn[];
+  /** Offered to the model on this call. Absent or empty: no tools. */
+  readonly tools?: readonly ToolDefinition[];
+  /**
+   * The tool exchanges so far in this reply, oldest first, following the
+   * turns. Never stored in the conversation: the guest sees only the answer.
+   */
+  readonly toolRounds?: readonly ToolRound[];
   readonly maxTokens?: number;
   /**
    * Facts about this moment, written by the code — how long the guest has
@@ -40,6 +103,8 @@ export interface ModelRequest {
 
 export type ModelResponse =
   | { readonly kind: 'text'; readonly text: string }
+  /** The model wants tools run before it answers. */
+  | { readonly kind: 'tool_calls'; readonly calls: readonly ToolCall[]; readonly turn: ProviderTurn }
   /** The provider declined. `category` is provider-specific and may be null. */
   | { readonly kind: 'refusal'; readonly category: string | null };
 

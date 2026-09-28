@@ -143,3 +143,35 @@ describe('the conversation layer', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe('the tools', () => {
+  // The agent's tools are the one place model output turns into an action.
+  // What they can import is what the model can reach.
+  for (const dir of ['tools', 'availability']) {
+    it(`${dir}/ never imports the messaging package or a channel`, async () => {
+      const offenders = (await importsAcross(`${BOT}/${dir}`)).filter(
+        ({ specifier }) => specifier.startsWith('@luxury/messaging') || specifier.includes('channels'),
+      );
+      // If this fails, a tool can send a message: "never give the agent a
+      // tool that sends a message or writes to a channel" (CLAUDE.md).
+      expect(offenders).toEqual([]);
+    });
+
+    it(`${dir}/ never touches the database`, async () => {
+      const offenders = (await importsAcross(`${BOT}/${dir}`)).filter(
+        ({ specifier }) => specifier === 'pg' || specifier.includes('/db') || specifier.includes('conversations'),
+      );
+      // No tool has general DB access; one that needs data gets a narrow
+      // query of its own, reviewed as a GRANT would be.
+      expect(offenders).toEqual([]);
+    });
+  }
+
+  it('the model layer knows the Toolbox port, not the tools or MiniHotel', async () => {
+    const offenders = (await importsAcross(`${BOT}/agent`)).filter(
+      ({ specifier }) =>
+        specifier.includes('/tools') || specifier.includes('/availability') || specifier.startsWith('@luxury/minihotel'),
+    );
+    expect(offenders).toEqual([]);
+  });
+});

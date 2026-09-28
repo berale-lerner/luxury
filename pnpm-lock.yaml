@@ -109,6 +109,9 @@ importers:
       '@luxury/messaging':
         specifier: workspace:*
         version: link:../../packages/messaging
+      '@luxury/minihotel':
+        specifier: workspace:*
+        version: link:../../packages/minihotel
       '@luxury/shared':
         specifier: workspace:*
         version: link:../../packages/shared

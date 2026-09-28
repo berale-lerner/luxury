@@ -1,6 +1,6 @@
-import { GoogleGenAI, FinishReason } from '@google/genai';
+import { GoogleGenAI, FinishReason, type Content, type Part } from '@google/genai';
 import { ModelCallError, retryableStatus } from '../model.js';
-import type { ModelClient, ModelRequest, ModelResponse } from '../model.js';
+import type { ModelClient, ModelRequest, ModelResponse, ProviderTurn, ToolRound } from '../model.js';
 
 /**
  * The Gemini adapter.
@@ -18,6 +18,55 @@ import type { ModelClient, ModelRequest, ModelResponse } from '../model.js';
 export interface GeminiModelOptions {
   readonly apiKey: string;
   readonly model?: string;
+  /** Tests point this at a local stub. Never set in a deployed service. */
+  readonly baseUrl?: string;
+}
+
+const PROVIDER = 'gemini';
+
+/**
+ * Older Gemini models return a function call without an id. The port needs
+ * one to pair a result with its call, so one is made up from the position —
+ * and never sent back, because Gemini did not issue it.
+ */
+const SYNTHETIC_ID = 'gemini-call-';
+
+function ownTurn(turn: ProviderTurn): Part[] {
+  if (turn.provider !== PROVIDER) {
+    throw new Error(`A ${PROVIDER} request was given a ${turn.provider} turn to replay.`);
+  }
+  return turn.payload as Part[];
+}
+
+/** A result's text as the object Gemini's functionResponse requires. */
+function responseObject(content: string, isError: boolean): Record<string, unknown> {
+  let value: unknown;
+  try {
+    value = JSON.parse(content);
+  } catch {
+    value = content;
+  }
+  return isError ? { error: value } : { output: value };
+}
+
+/**
+ * The model's parts verbatim — thought signature included, which Gemini 3
+ * refuses the next request without — then one user turn with every result.
+ */
+function roundContents(round: ToolRound): Content[] {
+  return [
+    { role: 'model', parts: ownTurn(round.turn) },
+    {
+      role: 'user',
+      parts: round.results.map((result) => ({
+        functionResponse: {
+          ...(result.callId.startsWith(SYNTHETIC_ID) ? {} : { id: result.callId }),
+          name: result.name,
+          response: responseObject(result.content, result.isError),
+        },
+      })),
+    },
+  ];
 }
 
 /** Finish reasons that mean the model declined rather than answered. */
@@ -30,10 +79,13 @@ const DECLINED = new Set<string>([
 ]);
 
 export function createGeminiModel(options: GeminiModelOptions): ModelClient {
-  const client = new GoogleGenAI({ apiKey: options.apiKey });
+  const client = new GoogleGenAI({
+    apiKey: options.apiKey,
+    ...(options.baseUrl ? { httpOptions: { baseUrl: options.baseUrl } } : {}),
+  });
 
   return {
-    provider: 'gemini',
+    provider: PROVIDER,
 
     async complete(request: ModelRequest): Promise<ModelResponse> {
       const response = await callGemini(client, options, request);
@@ -47,6 +99,19 @@ export function createGeminiModel(options: GeminiModelOptions): ModelClient {
       const finishReason = response.candidates?.[0]?.finishReason;
       if (finishReason && DECLINED.has(finishReason)) {
         return { kind: 'refusal', category: String(finishReason) };
+      }
+
+      const calls = response.functionCalls ?? [];
+      if (calls.length > 0) {
+        return {
+          kind: 'tool_calls',
+          calls: calls.map((call, index) => ({
+            id: call.id ?? `${SYNTHETIC_ID}${index}`,
+            name: call.name ?? '',
+            arguments: call.args ?? {},
+          })),
+          turn: { provider: PROVIDER, payload: response.candidates?.[0]?.content?.parts ?? [] },
+        };
       }
 
       return { kind: 'text', text: response.text ?? '' };
@@ -65,15 +130,22 @@ async function callGemini(
   options: GeminiModelOptions,
   request: ModelRequest,
 ) {
+  // Built outside the try: a mistake in building the request is ours, and
+  // must not be reported as a retryable vendor failure.
+  const contents: Content[] = [
+    ...request.turns.map((turn) => ({
+      // Gemini calls the assistant "model"; the port calls it
+      // "assistant". Translating here is this adapter's job.
+      role: turn.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: turn.text }],
+    })),
+    ...(request.toolRounds ?? []).flatMap(roundContents),
+  ];
+
   try {
     return await client.models.generateContent({
       model: options.model ?? 'gemini-3.8-flash',
-      contents: request.turns.map((turn) => ({
-        // Gemini calls the assistant "model"; the port calls it
-        // "assistant". Translating here is this adapter's job.
-        role: turn.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: turn.text }],
-      })),
+      contents,
       config: {
         // One field rather than a list of blocks, so the context is appended
         // instead of carried beside the prompt. The separation this vendor
@@ -83,11 +155,24 @@ async function callGemini(
           ? `${request.systemPrompt}\n\n${request.context}`
           : request.systemPrompt,
         maxOutputTokens: request.maxTokens ?? 1024,
+        ...(request.tools?.length
+          ? {
+              tools: [
+                {
+                  functionDeclarations: request.tools.map((tool) => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parametersJsonSchema: tool.parameters,
+                  })),
+                },
+              ],
+            }
+          : {}),
       },
     });
   } catch (error) {
     const status = (error as { status?: unknown }).status;
     const code = typeof status === 'number' ? status : undefined;
-    throw new ModelCallError('gemini', retryableStatus(code), code, { cause: error });
+    throw new ModelCallError(PROVIDER, retryableStatus(code), code, { cause: error });
   }
 }

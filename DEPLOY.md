@@ -258,8 +258,10 @@ echo -n '<Telegram token>'      | railway variable set TELEGRAM_BOT_TOKEN   --st
 Each environment gets its **own** Telegram bot, its own passwords and its own
 `AUTH_SECRET`. See the duplication warning above for what a shared token does.
 
-**MiniHotel — `admin` only, for now.** Optional as a group: without it `admin`
-starts and its availability screen says it is not configured. The three
+**MiniHotel — `admin` and `bot`.** The same variables on each service,
+set separately (never as shared variables). Optional as a group: without it
+`admin` starts and its dashboards say they are not configured, and `bot`
+starts without the `check_availability` tool. The three
 credentials are all-or-nothing; setting only some of them stops the service at
 boot.
 

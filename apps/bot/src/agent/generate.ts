@@ -1,5 +1,14 @@
 import { ModelCallError } from './model.js';
-import type { ConversationTurn, ModelClient } from './model.js';
+import type {
+  ConversationTurn,
+  ModelClient,
+  ModelRequest,
+  ModelResponse,
+  ToolCall,
+  ToolResult,
+  ToolRound,
+} from './model.js';
+import type { Toolbox, ToolLog } from './toolbox.js';
 
 export interface AgentReply {
   readonly text: string;
@@ -25,11 +34,31 @@ export interface AgentDeps {
   /** Between attempts. Short: the request is being held open meanwhile. */
   readonly backoffMs?: number;
   readonly sleep?: (ms: number) => Promise<void>;
+  /** What the model may ask for. Absent: it answers from the prompt alone. */
+  readonly toolbox?: Toolbox;
+  /**
+   * How many times the model may ask for tools before it must answer. A
+   * guest's question needs one lookup, occasionally two (other dates); more
+   * than that is a model going round in circles on the guest's time.
+   */
+  readonly maxToolRounds?: number;
+  /** Calls answered per round. Extra calls in the same turn are refused. */
+  readonly maxCallsPerRound?: number;
 }
 
 const DEFAULT_ATTEMPTS = 2;
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_BACKOFF_MS = 700;
+const DEFAULT_MAX_TOOL_ROUNDS = 3;
+const DEFAULT_MAX_CALLS_PER_ROUND = 3;
+
+/** The model kept asking for tools after it had been told to answer. */
+export class ToolLoopError extends Error {
+  constructor(provider: string, rounds: number) {
+    super(`${provider} was still asking for tools after ${rounds} rounds.`);
+    this.name = 'ToolLoopError';
+  }
+}
 
 /** The model did not answer in time. Retryable, unlike a refusal. */
 export class ModelTimeoutError extends Error {
@@ -81,46 +110,18 @@ async function completeWithin(
 }
 
 /**
- * Asks the model for a reply.
- *
- * It has no tools. This slice answers from the knowledge the owner wrote into
- * the system prompt; availability lookups come later, and adding them means
- * adding a tool with its own validation and output whitelist — not loosening
- * anything here.
- *
- * Depends on the ModelClient port, not on any provider's SDK, so swapping the
- * provider is a change in one adapter file. Credentials live in whatever the
- * caller constructed and never reach the model's context (CLAUDE.md).
- *
- * Retries live here rather than in each adapter: an unlucky call is not a
- * property of any one vendor, and writing it twice is how the two end up
- * behaving slightly differently. Which failures are worth retrying is the
- * adapter's call, carried on ModelCallError — this loop asks, it does not
- * inspect anyone's error shape.
+ * One model call that produced something usable, with the retry policy.
  *
  * Two things are never retried. A refusal is not a failure: the model
  * answered, and the answer was no. And an exhausted quota is not bad luck —
  * found in production as a 429 naming the minute it would return, where a
  * second attempt spent another unit of the very thing that had run out.
  */
-export async function generateReply(
-  deps: AgentDeps,
-  systemPrompt: string,
-  promptVersion: number,
-  history: readonly ConversationTurn[],
-  context?: string,
-): Promise<AgentReply> {
+async function ask(deps: AgentDeps, request: ModelRequest): Promise<ModelResponse> {
   const attempts = deps.attempts ?? DEFAULT_ATTEMPTS;
   const timeoutMs = deps.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const backoffMs = deps.backoffMs ?? DEFAULT_BACKOFF_MS;
   const sleep = deps.sleep ?? wait;
-
-  const request = {
-    systemPrompt,
-    turns: history,
-    ...(context !== undefined ? { context } : {}),
-    ...(deps.maxTokens !== undefined ? { maxTokens: deps.maxTokens } : {}),
-  };
 
   let lastError: unknown;
 
@@ -141,8 +142,7 @@ export async function generateReply(
       throw new AgentRefusedError(deps.model.provider, response.category);
     }
 
-    const text = response.text.trim();
-    if (text.length === 0) {
+    if (response.kind === 'text' && response.text.trim().length === 0) {
       // An empty answer is a broken call, not a decision, so it is worth
       // another go — but not an infinite one.
       lastError = new Error(`${deps.model.provider} returned no text to send.`);
@@ -150,10 +150,104 @@ export async function generateReply(
       continue;
     }
 
-    return { text, promptVersion };
+    return response;
   }
 
   throw lastError ?? new Error(`${deps.model.provider} did not answer.`);
+}
+
+/** A result the code wrote itself, telling the model why a call was not run. */
+function refused(call: ToolCall, reason: string): ToolResult {
+  return { callId: call.id, name: call.name, content: JSON.stringify({ error: reason }), isError: true };
+}
+
+/**
+ * Runs what the model asked for. Every call gets a result — the providers
+ * require one per call — but only the first few are actually run.
+ */
+async function runCalls(
+  toolbox: Toolbox,
+  calls: readonly ToolCall[],
+  maxCalls: number,
+  log: ToolLog,
+): Promise<ToolResult[]> {
+  const results: ToolResult[] = [];
+  for (const [index, call] of calls.entries()) {
+    if (index >= maxCalls) {
+      results.push(refused(call, 'Too many lookups at once. Use the results you already have.'));
+      continue;
+    }
+    // Sequential, not parallel: each call is an external request, and a
+    // model that asks for many at once should not multiply the load.
+    results.push(await toolbox.run(call, log));
+  }
+  return results;
+}
+
+/**
+ * Asks the model for a reply, running the tools it asks for along the way.
+ *
+ * The loop is ours rather than an SDK's tool runner, because this is where
+ * "the model requests, the code decides" happens: which tools exist, how many
+ * calls are answered, and that the model has to stop asking and answer. It
+ * also has to work the same for both providers, which no vendor's runner does.
+ *
+ * Depends on the ModelClient port, not on any provider's SDK. Credentials live
+ * in whatever the caller constructed and never reach the model's context
+ * (CLAUDE.md). The tool exchanges exist only inside this call: the guest sees
+ * the answer, and the conversation stores only the answer.
+ *
+ * Retries are per model call (see ask()), so a failure after a lookup does
+ * not repeat the lookup.
+ */
+export async function generateReply(
+  deps: AgentDeps,
+  systemPrompt: string,
+  promptVersion: number,
+  history: readonly ConversationTurn[],
+  context?: string,
+  log: ToolLog = () => {},
+): Promise<AgentReply> {
+  const maxRounds = deps.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
+  const maxCalls = deps.maxCallsPerRound ?? DEFAULT_MAX_CALLS_PER_ROUND;
+  const tools = deps.toolbox?.definitions ?? [];
+  const rounds: ToolRound[] = [];
+
+  for (;;) {
+    const response = await ask(deps, {
+      systemPrompt,
+      turns: history,
+      ...(context !== undefined ? { context } : {}),
+      ...(deps.maxTokens !== undefined ? { maxTokens: deps.maxTokens } : {}),
+      ...(tools.length > 0 ? { tools } : {}),
+      ...(rounds.length > 0 ? { toolRounds: rounds } : {}),
+    });
+
+    if (response.kind === 'text') {
+      return { text: response.text.trim(), promptVersion };
+    }
+    if (response.kind !== 'tool_calls') {
+      throw new Error(`${deps.model.provider} returned an unexpected response.`);
+    }
+
+    if (!deps.toolbox || rounds.length > maxRounds) {
+      // Asked for a tool it was never offered, or kept asking after being
+      // told to stop: either way there is no answer to send.
+      throw new ToolLoopError(deps.model.provider, rounds.length);
+    }
+
+    const results =
+      rounds.length === maxRounds
+        ? // One last round in which nothing runs: every call is answered with
+          // an instruction to reply now. A model that asks again after this
+          // ends the loop above.
+          response.calls.map((call) =>
+            refused(call, 'No more lookups in this reply. Answer the guest with what you have.'),
+          )
+        : await runCalls(deps.toolbox, response.calls, maxCalls, log);
+
+    rounds.push({ turn: response.turn, results });
+  }
 }
 
 /** The model declined to answer. The guest gets a handover, not the reason. */

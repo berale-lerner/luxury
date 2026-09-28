@@ -87,6 +87,9 @@ export async function replyToConversation(
       prompt.versionNumber,
       history.turns,
       context,
+      // Tool calls are logged against this conversation. Structured events
+      // only; message content is never logged (STANDARDS.md).
+      (event) => log({ ...event, conversationId }),
     );
   } catch (error) {
     if (error instanceof AgentRefusedError) {

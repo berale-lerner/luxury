@@ -1,5 +1,5 @@
 ---
-status: todo
+status: doing
 opened: 2026-09-08
 ---
 
@@ -52,6 +52,40 @@ the only boundary here, since the vendor does not offer a read-only key.
 Rate limit and timeout on the call — inside the tool, so every caller gets
 them — and a log line per invocation with the parameters but not the response
 body.
+
+## Built, 2026-09-28 — not yet tried in a real conversation
+
+What exists, and where:
+
+| Layer | File | Does |
+|---|---|---|
+| Port | `apps/bot/src/agent/model.ts` | `ToolDefinition` / `ToolCall` / `ToolResult`; the model's own turn travels as an opaque `ProviderTurn` |
+| Adapters | `agent/providers/anthropic.ts`, `gemini.ts` | tool_use / tool_result; functionCall / functionResponse with the thought signature replayed |
+| Loop | `agent/generate.ts` | our own loop: at most 3 rounds × 3 calls, then "answer now", then `ToolLoopError`. Retries per model call, never re-running a lookup |
+| Toolbox | `tools/toolbox.ts` | unknown tool, exceptions, and the `agent.tool` log line (name, validated params, ms, outcome) |
+| Tool | `tools/check-availability.ts` | validates, calls the use case, shrinks to apartment name + total price + currency |
+| Use case | `availability/find-apartments.ts` | Immediate ARI for the stay; cheapest board as the price |
+
+Decisions (owner, 2026-09-28): the guest sees the apartment name and the
+total price for the stay; the apartments offered are an allowlist in code
+(`OFFERED_APARTMENTS`, the 11 named apartments — not SUITE1–10); a stay is at
+most 30 nights, starting within a year; adults 1–10, children and babies 0–10.
+
+The tool is offered only when the bot has `MINIHOTEL_*` set. An apartment
+missing from MiniHotel's answer is described to the model as "not for these
+dates", never as "taken", because a minimum stay looks the same (MINIHOTEL.md).
+
+Still to do:
+
+- Set `MINIHOTEL_*` on staging's `bot`, and try it in a conversation
+- A prompt document on *how* to talk about availability (the tool says what;
+  the owner's text says how)
+- The reply can now take several model calls plus a lookup. The worst case is
+  well past a minute; how Telegram treats a webhook held that long has not
+  been checked
+- Rate limiting across replies (per conversation, per hour) — today only the
+  per-reply caps exist
+- Move `OFFERED_APARTMENTS` to a table with an admin screen
 
 ## Update 2026-09-28: the client exists
 

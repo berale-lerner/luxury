@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.124.0",
     "@google/genai": "^2.21.0",
     "@luxury/messaging": "workspace:*",
+    "@luxury/minihotel": "workspace:*",
     "@luxury/shared": "workspace:*",
     "fastify": "^5.2.1",
     "pg": "^8.13.1",

@@ -1,5 +1,6 @@
 import { createMessagingRouter, createTelegramSender } from '@luxury/messaging';
-import { loadConfig, modelSelection, providerKeys } from './config.js';
+import { createMiniHotelClient } from '@luxury/minihotel';
+import { loadConfig, miniHotelSettings, modelSelection, providerKeys } from './config.js';
 import { createPool } from './db.js';
 import { buildApp } from './app.js';
 import { PromptCache, createModel } from './agent/index.js';
@@ -9,9 +10,27 @@ import {
   TELEGRAM_WEBHOOK_PATH,
 } from './channels/index.js';
 import { createDestinationResolver } from './conversations/index.js';
+import { createCheckAvailabilityTool, createToolbox, hotelToday } from './tools/index.js';
 
 const config = loadConfig();
 const pool = createPool(config.DATABASE_URL);
+
+// The agent's tools. Without MiniHotel settings there are none, and the agent
+// answers from the prompt alone — as it did before the tool existed.
+const miniHotel = miniHotelSettings(config);
+const toolbox = miniHotel
+  ? createToolbox([
+      createCheckAvailabilityTool({
+        // Credentials are handed in here; packages/minihotel never reads env.
+        client: createMiniHotelClient({
+          credentials: miniHotel.credentials,
+          ...(miniHotel.ariUrl ? { ariUrl: miniHotel.ariUrl } : {}),
+        }),
+        rateCode: miniHotel.rateCode,
+        today: hotelToday(config.TIMEZONE),
+      }),
+    ])
+  : undefined;
 
 // Where the two generic layers are given their concrete implementations, and
 // the only place in the service that names a provider or a platform.
@@ -22,7 +41,10 @@ const app = buildApp({
   reply: {
     prompts: new PromptCache(pool, config.AGENT_KEY),
     timeZone: config.TIMEZONE,
-    agent: { model: createModel(modelSelection(config), providerKeys(config)) },
+    agent: {
+      model: createModel(modelSelection(config), providerKeys(config)),
+      ...(toolbox ? { toolbox } : {}),
+    },
     // Credentials are handed to the messaging package here. It never reads
     // them itself (CLAUDE.md, "Architecture").
     messaging: createMessagingRouter({

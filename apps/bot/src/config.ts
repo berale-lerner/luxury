@@ -12,6 +12,11 @@ import { PROVIDERS, type ProviderKeys, type ModelSelection } from './agent/regis
  * These are read at the service level only. Nothing in packages/ reads env
  * (CLAUDE.md, "Architecture").
  */
+/** `KEY=` with nothing after it, as .env.example has, means unset. */
+function optionalSetting<T extends z.ZodTypeAny>(inner: T) {
+  return z.preprocess((value) => (value === '' ? undefined : value), inner.optional());
+}
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(16),
@@ -41,6 +46,15 @@ const schema = z.object({
    * has no public address to register.
    */
   RAILWAY_PUBLIC_DOMAIN: z.string().min(1).optional(),
+  // MiniHotel, for the availability tool. Optional as a group: without it
+  // the agent is simply not offered the tool. The three credentials are
+  // all-or-nothing, checked below.
+  MINIHOTEL_USERNAME: optionalSetting(z.string().min(1)),
+  MINIHOTEL_PASSWORD: optionalSetting(z.string().min(1)),
+  MINIHOTEL_HOTEL_ID: optionalSetting(z.string().min(1)),
+  MINIHOTEL_RATE_CODE: optionalSetting(z.string().min(1)).transform((v) => v ?? 'USD'),
+  /** Staging points this at the sandbox, or leaves it unset (work/0013). */
+  MINIHOTEL_ARI_URL: optionalSetting(z.string().url()),
   PORT: z.coerce.number().int().positive().default(3001),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
@@ -55,6 +69,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BotConfig {
   }
 
   const config = parsed.data;
+
+  const miniHotel = [config.MINIHOTEL_USERNAME, config.MINIHOTEL_PASSWORD, config.MINIHOTEL_HOTEL_ID];
+  if (miniHotel.some(Boolean) && !miniHotel.every(Boolean)) {
+    // A half-set group would start a bot whose tool fails on every guest's
+    // question. Names only, never values.
+    const missing = ['MINIHOTEL_USERNAME', 'MINIHOTEL_PASSWORD', 'MINIHOTEL_HOTEL_ID'].filter((_, i) => !miniHotel[i]);
+    throw new Error(`Invalid environment for apps/bot: ${missing.join(', ')} (required with the other MINIHOTEL_ settings)`);
+  }
 
   // Checked at boot rather than on the first guest message. A service that
   // starts without the key for the provider it was told to use would look
@@ -79,5 +101,25 @@ export function modelSelection(config: BotConfig): ModelSelection {
   return {
     provider: config.MODEL_PROVIDER,
     ...(config.MODEL_NAME ? { model: config.MODEL_NAME } : {}),
+  };
+}
+
+export interface MiniHotelSettings {
+  readonly credentials: { readonly username: string; readonly password: string; readonly hotelId: string };
+  readonly rateCode: string;
+  readonly ariUrl?: string;
+}
+
+/** The MiniHotel group, or null when this service has none. */
+export function miniHotelSettings(config: BotConfig): MiniHotelSettings | null {
+  if (!config.MINIHOTEL_USERNAME || !config.MINIHOTEL_PASSWORD || !config.MINIHOTEL_HOTEL_ID) return null;
+  return {
+    credentials: {
+      username: config.MINIHOTEL_USERNAME,
+      password: config.MINIHOTEL_PASSWORD,
+      hotelId: config.MINIHOTEL_HOTEL_ID,
+    },
+    rateCode: config.MINIHOTEL_RATE_CODE,
+    ...(config.MINIHOTEL_ARI_URL ? { ariUrl: config.MINIHOTEL_ARI_URL } : {}),
   };
 }
