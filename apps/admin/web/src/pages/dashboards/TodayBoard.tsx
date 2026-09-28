@@ -59,7 +59,9 @@ function Stays({ title, rows, empty }: { title: string; rows: StayRow[]; empty: 
               <Room number={row.roomNumber} typeName={row.roomTypeName} />
               <span className="today-guest">
                 {/* Rendered as text, like every other guest-supplied string. */}
-                <span className="today-name">{row.guestName || '—'}</span>
+                <span className="today-name" dir="auto">
+                  {row.guestName || "—"}
+                </span>
                 <span className="hint">
                   {/* Isolated left-to-right, or the range reads backwards in RTL. */}
                   <bdi dir="ltr">
