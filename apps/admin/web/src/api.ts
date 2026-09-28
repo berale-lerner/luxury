@@ -31,7 +31,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code?: string,
-    /** A third party's own code behind the refusal, e.g. MiniHotel's `863`. */
+    /** A third party's own code behind the refusal, e.g. MiniHotel's `A01`. */
     readonly vendorCode?: string,
   ) {
     super(code ?? `request failed with ${status}`);

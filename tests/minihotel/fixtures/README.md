@@ -16,7 +16,7 @@ error status.
 Seen but not recorded: production answered code `A01` to a real username from
 staging's Railway addresses on 2026-09-28, before they were allowlisted. The
 code reached our logs; the body did not, because the client never keeps
-vendor text. The tests for `863` / `A01` use a constructed body. A made-up user gets `210` first, so this needs real credentials.
+vendor text. The test for `A01` uses a constructed body. A made-up user gets `210` first, so this needs real credentials.
 
 The sandbox accepted a wrong password on 2026-09-28, so a sandbox success says
 nothing about whether the password is right.

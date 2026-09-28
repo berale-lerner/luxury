@@ -7,9 +7,9 @@
  * reading the logs.
  */
 export type MiniHotelFailure =
-  /** The vendor refused the calling IP (codes 863 / A01, or an HTTP 401 saying so). */
+  /** The vendor refused the calling IP (code A01, or an HTTP 401 saying so). */
   | 'ip_not_authorized'
-  /** The username, password or hotel code was rejected (codes 210 / 211). */
+  /** The username, hotel code or user code was rejected (codes 210 / 211 / 863). */
   | 'auth_failed'
   /** Any other `ERR nnn:` answer. The code is carried. */
   | 'vendor_error'
@@ -39,8 +39,10 @@ export class MiniHotelError extends Error {
   }
 }
 
-const IP_CODES = new Set(['863', 'A01']);
-const AUTH_CODES = new Set(['210', '211']);
+// From minihotel.readme.io/reference/error-codes. 863 is "Incorrect user
+// code", not an address problem, whatever older notes said.
+const IP_CODES = new Set(['A01']);
+const AUTH_CODES = new Set(['210', '211', '863']);
 
 /**
  * MiniHotel reports errors as HTTP 200 with a plain-text body such as

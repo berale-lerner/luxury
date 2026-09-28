@@ -129,7 +129,7 @@ describe('how often MiniHotel is asked', () => {
   });
 
   it('does not keep a failure, so trying again asks again', async () => {
-    const fake = fakeClient({ fail: new MiniHotelError('ip_not_authorized', '863') });
+    const fake = fakeClient({ fail: new MiniHotelError('ip_not_authorized', 'A01') });
     const service = createAvailabilityService({ client: fake.client, rateCode: 'USD', timeZone: 'UTC' });
 
     await expect(service.week('2026-09-28')).rejects.toBeInstanceOf(MiniHotelError);
@@ -269,11 +269,11 @@ describe('the endpoint', () => {
   });
 
   it('names an address missing from the allowlist, with the vendor code', async () => {
-    const fake = fakeClient({ fail: new MiniHotelError('ip_not_authorized', '863') });
+    const fake = fakeClient({ fail: new MiniHotelError('ip_not_authorized', 'A01') });
     const response = await get('/api/availability', serviceWith(fake.client));
 
     expect(response.statusCode).toBe(502);
-    expect(response.json()).toEqual({ error: 'ip_not_authorized', code: '863' });
+    expect(response.json()).toEqual({ error: 'ip_not_authorized', code: 'A01' });
   });
 
   it('names a timeout, which has no vendor code', async () => {

@@ -185,14 +185,22 @@ describe('a refusal', () => {
     expect([error.failure, error.code]).toEqual(['vendor_error', '202']);
   });
 
-  // Not yet recorded (fixtures/README.md). The body follows the shape of the
-  // two recorded errors; the codes are MINIHOTEL.md's.
-  it.each(['863', 'A01'])('reads code %s as an address missing from the allowlist', async (code) => {
-    const stub = await stubMiniHotel({ body: `ERR ${code}: Unauthorized IP` });
+  // Seen from production but not recorded (fixtures/README.md). The body
+  // follows the shape of the recorded errors and the vendor's code list.
+  it('reads code A01 as an address missing from the allowlist', async () => {
+    const stub = await stubMiniHotel({ body: 'ERR A01: IP address is not authorized' });
     const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
 
     const error = await failureOf(client.bulkAri(QUERY));
-    expect([error.failure, error.code]).toEqual(['ip_not_authorized', code]);
+    expect([error.failure, error.code]).toEqual(['ip_not_authorized', 'A01']);
+  });
+
+  it.each(['211', '863'])('reads code %s as rejected credentials, not as an address problem', async (code) => {
+    const stub = await stubMiniHotel({ body: `ERR ${code}: Incorrect` });
+    const client = createMiniHotelClient({ credentials: CREDENTIALS, ariUrl: stub.ariUrl });
+
+    const error = await failureOf(client.bulkAri(QUERY));
+    expect([error.failure, error.code]).toEqual(['auth_failed', code]);
   });
 
   it('reads an HTTP 401 about the IP address as an address missing from the allowlist', async () => {

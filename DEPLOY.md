@@ -147,7 +147,7 @@ gateway only applies to replicas in its own region; all four services ran in
 `ams`, matching their gateways, on 2026-09-28.
 
 ⚠️ **Assume the addresses can change.** Nothing in Railway promises they are
-permanent. If MiniHotel starts answering `863` / `A01`, compare this table
+permanent. If MiniHotel starts answering `A01`, compare this table
 against the dashboard before looking anywhere else.
 
 ### Why `migrator` is a separate service
@@ -265,7 +265,7 @@ boot.
 
 | Variable | production | staging |
 |---|---|---|
-| `MINIHOTEL_USERNAME` | the API user from MiniHotel (MINIHOTEL.md) | `Test` |
+| `MINIHOTEL_USERNAME` | `luxuryat` — the one the vendor's allowlist is tied to (MINIHOTEL.md) | `Test` |
 | `MINIHOTEL_PASSWORD` | its password | `3657488` |
 | `MINIHOTEL_HOTEL_ID` | `luxury50` | `sandbox` |
 | `MINIHOTEL_RATE_CODE` | omit (`USD`) | omit (`USD`) |

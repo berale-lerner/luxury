@@ -115,7 +115,7 @@ has not earned.
 
 The static egress addresses belong here too. They exist only in the Railway
 console today, they are not secrets, and an incomplete allowlist is exactly
-what error codes `863` / `A01` report. They go in DEPLOY.md, and the allowlist
+what error code `A01` reports. They go in DEPLOY.md, and the allowlist
 requirement goes in MINIHOTEL.md.
 
 ## Phase 1 — tool calls in the port, the loop in generate.ts
