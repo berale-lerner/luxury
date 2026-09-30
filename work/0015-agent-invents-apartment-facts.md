@@ -50,6 +50,23 @@ into prompt text (CLAUDE.md, "Editable content"). Options, cheapest first:
 Whatever is built, the test is the one in CLAUDE.md: if the guest saw exactly
 what the function returns, would that be fine?
 
+## Decided for now (2026-09-30): a table in the prompt
+
+The owner chose to keep apartment facts in the prompt, as a table document
+(the agents page, [0016](0016-agents-page-and-document-editor.md)), rather
+than build the tool first. This departs from CLAUDE.md's "facts come from
+tools", knowingly, and the costs stay true:
+
+- Every row is sent with every guest message, on top of ~17k characters
+- The model can still misread a row of a long table; a tool that returns one
+  apartment's facts cannot put another apartment's beds in the answer
+- Prices and availability must never be copied into that table: those come
+  from `check_availability`, and a copy goes stale silently
+
+Revisit when the table grows past what fits comfortably in every message, or
+the agent is seen reading the wrong row. The tool (option 1) is the way out,
+and the table's columns become its field set.
+
 ## Open
 
 - Does the hotel have the apartment facts written down anywhere already

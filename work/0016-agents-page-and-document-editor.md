@@ -81,8 +81,8 @@ version snapshot holds the whole set.
   capacity and links into the prompt. CLAUDE.md says facts about apartments
   come from tools, and [0015](0015-agent-invents-apartment-facts.md) has not
   decided between a table in the prompt and a tool. Each row is sent with
-  every guest message on top of today's ~17k characters. The owner decides;
-  record the decision in 0015 either way
+  every guest message on top of today's ~17k characters. **Decided
+  2026-09-30: a table in the prompt, for now** — recorded in 0015
 - **Creating an agent from the screen.** Out of scope: an agent is only
   useful when code resolves its key (today only `guest`). Selecting among
   existing agents is in scope; adding one is a code change plus a migration
