@@ -50,6 +50,7 @@ const RESERVATIONS = [
   reservation('D', '1', TODAY, '2026-09-29'), // arrives in the room A leaves
   reservation('E', '4', '2026-09-27', '2026-10-01', 'CLOSE'), // room closed
   reservation('F', null, TODAY, '2026-10-02', 'WL'), // waiting list, no room
+  { ...reservation('M', '6', '2026-09-20', '2026-10-06'), guestName: 'MANTENIMIENTO' }, // maintenance
 ];
 
 function fakeClient(overrides: { fail?: MiniHotelError } = {}) {
@@ -103,8 +104,8 @@ describe('the board', () => {
     const service = createTodayService({ client: fakeClient().client, timeZone: 'Asia/Jerusalem', now: () => ISRAEL_EVENING });
     const board = await service.board();
 
-    // 1: A leaves, D arrives. 2: B. 3: C. 4: closed.
-    expect(rooms(board.vacant)).toEqual(['5', '6', '10']);
+    // 1: A leaves, D arrives. 2: B. 3: C. 4: closed. 6: maintenance.
+    expect(rooms(board.vacant)).toEqual(['5', '10']);
   });
 
   it('lists a closed room as closed, never as a guest', async () => {
@@ -114,6 +115,16 @@ describe('the board', () => {
     expect(rooms(board.closed)).toEqual(['4']);
     const everyone = [...board.arrivals, ...board.departures, ...board.stayovers];
     expect(numbers(everyone)).not.toContain('E');
+  });
+
+  it('hides a room in maintenance: not a guest, not free, not closed', async () => {
+    const service = createTodayService({ client: fakeClient().client, timeZone: 'Asia/Jerusalem', now: () => ISRAEL_EVENING });
+    const board = await service.board();
+
+    const everyone = [...board.arrivals, ...board.departures, ...board.stayovers];
+    expect(numbers(everyone)).not.toContain('M');
+    expect(rooms(board.vacant)).not.toContain('6');
+    expect(rooms(board.closed)).not.toContain('6');
   });
 
   it('keeps a reservation with no room, sorted last', async () => {

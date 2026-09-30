@@ -8,6 +8,17 @@ import { addDays, createTtlCache, DASHBOARD_TTL_MS, todayIn } from './ttl-cache.
  */
 const NOT_A_GUEST = new Set(['CLOSE', 'ALC']);
 
+/**
+ * The hotel blocks a room for maintenance with a reservation in the name
+ * "Mantenimiento", not with CLOSE (confirmed by the owner, 30 September).
+ * The room is not free, but the row is not a guest and is not shown at all.
+ * The name is split across Namep/Namef in no fixed order, so any word counts.
+ */
+const MAINTENANCE_NAME = 'mantenimiento';
+
+const isMaintenance = (reservation: RoomReservation) =>
+  reservation.guestName.toLowerCase().split(/\s+/).includes(MAINTENANCE_NAME);
+
 export interface StayRow {
   readonly reservationNumber: string;
   readonly guestName: string;
@@ -32,7 +43,7 @@ export interface TodayBoard {
   readonly departures: readonly StayRow[];
   /** Arrived before today, leaving after it: in the room tonight too. */
   readonly stayovers: readonly StayRow[];
-  /** Nobody in them tonight and not closed. */
+  /** Nobody in them tonight, not closed and not in maintenance. */
   readonly vacant: readonly RoomRow[];
   /** Closed for sale, or held for an agent, tonight. */
   readonly closed: readonly RoomRow[];
@@ -91,7 +102,9 @@ export function createTodayService(options: TodayServiceOptions): TodayService {
 
     const tonight = (reservation: RoomReservation) =>
       reservation.arrival <= date && reservation.departure > date;
-    const guests = status.reservations.filter((reservation) => !NOT_A_GUEST.has(reservation.status));
+    const guests = status.reservations.filter(
+      (reservation) => !NOT_A_GUEST.has(reservation.status) && !isMaintenance(reservation),
+    );
     const holds = status.reservations.filter(
       (reservation) => NOT_A_GUEST.has(reservation.status) && tonight(reservation) && reservation.roomNumber,
     );
