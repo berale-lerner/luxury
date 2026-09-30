@@ -5,6 +5,7 @@ import type {
   AvailabilityWeek,
   PromptDocument,
   PromptState,
+  PromptTable,
   PromptVersion,
   ConversationMessage,
   ConversationSummary,
@@ -126,16 +127,16 @@ export const api = {
 
   prompt: (key: string) => request<PromptState>(`/api/agents/${key}/prompt`),
 
-  addDocument: (key: string, title: string, body = '') =>
+  addDocument: (key: string, title: string, kind: PromptDocument['kind']) =>
     request<{ document: PromptDocument }>(`/api/agents/${key}/documents`, {
       method: 'POST',
-      body: JSON.stringify({ title, body }),
+      body: JSON.stringify({ title, kind }),
     }),
 
   updateDocument: (
     key: string,
     id: string,
-    changes: { title?: string; body?: string; isActive?: boolean },
+    changes: { title?: string; body?: string; table?: PromptTable; isActive?: boolean },
   ) =>
     request<{ document: PromptDocument }>(`/api/agents/${key}/documents/${id}`, {
       method: 'PATCH',

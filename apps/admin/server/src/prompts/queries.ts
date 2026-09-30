@@ -1,6 +1,11 @@
 import type pg from 'pg';
 import type { PoolClient } from 'pg';
-import { assemblePrompt, type PromptDocument } from '@luxury/shared';
+import {
+  assemblePrompt,
+  type PromptDocument,
+  type PromptDocumentKind,
+  type PromptTable,
+} from '@luxury/shared';
 
 export interface Agent {
   readonly id: string;
@@ -10,6 +15,8 @@ export interface Agent {
 
 export interface PromptDocumentRow extends PromptDocument {
   readonly id: string;
+  readonly kind: PromptDocumentKind;
+  readonly table: PromptTable | null;
   readonly isActive: boolean;
   readonly updatedBy: string | null;
   readonly updatedAt: string;
@@ -22,7 +29,13 @@ export interface PublishedVersion {
   readonly characters: number;
 }
 
-export type PromptWriteError = 'no_agent' | 'not_found' | 'empty' | 'unchanged' | 'bad_order';
+export type PromptWriteError =
+  | 'no_agent'
+  | 'not_found'
+  | 'empty'
+  | 'unchanged'
+  | 'bad_order'
+  | 'wrong_kind';
 
 export class PromptWriteRefused extends Error {
   constructor(readonly reason: PromptWriteError) {
@@ -49,7 +62,12 @@ export async function getPrompt(
   agentKey: string,
 ): Promise<{
   agent: Agent;
-  documents: PromptDocumentRow[];
+  /**
+   * Each marked with whether it differs from the same document in the
+   * version that is serving, so the list can show which ones an edit has
+   * touched. A document that did not exist then counts as changed.
+   */
+  documents: Array<PromptDocumentRow & { changed: boolean }>;
   published: PublishedVersion | null;
   /** The draft as the agent would receive it. */
   preview: string;
@@ -66,15 +84,25 @@ export async function getPrompt(
   const published = await readPublished(pool, agent.id);
   const preview = assemblePrompt(documents);
 
-  const current = await pool.query<{ body: string }>(
-    `SELECT body FROM public.prompt_versions
+  const current = await pool.query<{ body: string; snapshot: Array<PromptDocument & { id?: string }> }>(
+    `SELECT body, snapshot FROM public.prompt_versions
       WHERE agent_id = $1 ORDER BY version_number DESC LIMIT 1`,
     [agent.id],
   );
+  const snapshot: Array<PromptDocument & { id?: string }> = current.rows[0]?.snapshot ?? [];
+  // A version seeded by the deploy script (scripts/deploy.mjs) was
+  // snapshotted from files and carries no ids; its documents are matched by
+  // position instead, which is what the script gave them.
+  const counterpart = (document: PromptDocumentRow) =>
+    snapshot.find((published) => published.id === document.id) ??
+    snapshot.find((published) => published.id === undefined && published.position === document.position);
 
   return {
     agent,
-    documents,
+    documents: documents.map((document) => ({
+      ...document,
+      changed: !sameContent(document, counterpart(document)),
+    })),
     published,
     preview,
     hasChanges: preview.length > 0 && current.rows[0]?.body !== preview,
@@ -127,18 +155,37 @@ export async function getVersion(
   return { versionNumber, body: row.body, documents: row.snapshot };
 }
 
+/** A table starts with two unnamed columns and one empty row to type into. */
+export const EMPTY_TABLE: PromptTable = { columns: ['', ''], rows: [['', '']] };
+
+/**
+ * Adds a document at the end of the order.
+ *
+ * The kind is fixed here, once. Nothing changes it later: turning a table
+ * into text, or back, would have to either lose its structure or invent one.
+ */
 export async function createDocument(
   pool: pg.Pool,
   agentKey: string,
-  input: { title: string; body: string; by: string },
+  input: {
+    title: string;
+    body?: string | undefined;
+    kind?: PromptDocumentKind | undefined;
+    table?: PromptTable | undefined;
+    by: string;
+  },
 ): Promise<PromptDocumentRow> {
   const agent = await findAgent(pool, agentKey);
+  const kind = input.kind ?? 'text';
+  const table = kind === 'table' ? (input.table ?? EMPTY_TABLE) : null;
+  const body = kind === 'table' ? '' : (input.body ?? '');
   const result = await pool.query(
-    `INSERT INTO public.prompt_documents (agent_id, title, body, position, updated_by)
-     SELECT $1, $2, $3, coalesce(max(position), 0) + 10, $4
+    `INSERT INTO public.prompt_documents
+       (agent_id, title, body, kind, table_content, position, updated_by)
+     SELECT $1, $2, $3, $4, $5::jsonb, coalesce(max(position), 0) + 10, $6
        FROM public.prompt_documents WHERE agent_id = $1
-     RETURNING id, title, body, position, is_active, updated_by, updated_at`,
-    [agent.id, input.title, input.body, input.by],
+     RETURNING ${COLUMNS}`,
+    [agent.id, input.title, body, kind, table && JSON.stringify(table), input.by],
   );
   return toDocument(result.rows[0]);
 }
@@ -149,26 +196,49 @@ export async function updateDocument(
   input: {
     id: string;
     title?: string | undefined;
+    /** Text documents only. */
     body?: string | undefined;
+    /** Table documents only. */
+    table?: PromptTable | undefined;
     isActive?: boolean | undefined;
     by: string;
   },
 ): Promise<PromptDocumentRow> {
   const agent = await findAgent(pool, agentKey);
+  // Content that belongs to the other kind is refused rather than ignored:
+  // a body written to a table would be saved, never served, and never shown.
+  const requiredKind = input.body !== undefined ? 'text' : input.table !== undefined ? 'table' : null;
+  if (input.body !== undefined && input.table !== undefined) throw new PromptWriteRefused('wrong_kind');
+
   const result = await pool.query(
     `UPDATE public.prompt_documents
         SET title = coalesce($3, title),
             body = coalesce($4, body),
-            is_active = coalesce($5, is_active),
-            updated_by = $6,
+            table_content = coalesce($5::jsonb, table_content),
+            is_active = coalesce($6, is_active),
+            updated_by = $7,
             updated_at = now()
-      WHERE id = $2 AND agent_id = $1
-  RETURNING id, title, body, position, is_active, updated_by, updated_at`,
-    [agent.id, input.id, input.title ?? null, input.body ?? null, input.isActive ?? null, input.by],
+      WHERE id = $2 AND agent_id = $1 AND ($8::text IS NULL OR kind = $8)
+  RETURNING ${COLUMNS}`,
+    [
+      agent.id,
+      input.id,
+      input.title ?? null,
+      input.body ?? null,
+      input.table ? JSON.stringify(input.table) : null,
+      input.isActive ?? null,
+      input.by,
+      requiredKind,
+    ],
   );
   const row = result.rows[0];
-  if (!row) throw new PromptWriteRefused('not_found');
-  return toDocument(row);
+  if (row) return toDocument(row);
+
+  const exists = await pool.query(
+    'SELECT 1 FROM public.prompt_documents WHERE id = $1 AND agent_id = $2',
+    [input.id, agent.id],
+  );
+  throw new PromptWriteRefused(exists.rowCount ? 'wrong_kind' : 'not_found');
 }
 
 export async function deleteDocument(
@@ -303,13 +373,18 @@ export async function revertTo(
   return inTransaction(pool, async (client) => {
     await client.query('DELETE FROM public.prompt_documents WHERE agent_id = $1', [agent.id]);
     for (const [index, document] of version.documents.entries()) {
+      // Versions published before migration 0013 have no kind: text.
+      const kind = document.kind ?? 'text';
       await client.query(
-        `INSERT INTO public.prompt_documents (agent_id, title, body, position, is_active, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO public.prompt_documents
+           (agent_id, title, body, kind, table_content, position, is_active, updated_by)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)`,
         [
           agent.id,
           document.title,
           document.body,
+          kind,
+          kind === 'table' ? JSON.stringify(document.table ?? EMPTY_TABLE) : null,
           document.position ?? (index + 1) * 10,
           document.isActive ?? true,
           by,
@@ -335,7 +410,7 @@ async function readDocuments(
   agentId: string,
 ): Promise<PromptDocumentRow[]> {
   const result = await client.query(
-    `SELECT id, title, body, position, is_active, updated_by, updated_at
+    `SELECT ${COLUMNS}
        FROM public.prompt_documents
       WHERE agent_id = $1
       ORDER BY position`,
@@ -384,10 +459,31 @@ async function inTransaction<T>(
   }
 }
 
+const COLUMNS =
+  'id, title, body, kind, table_content, position, is_active, updated_by, updated_at';
+
+/**
+ * Whether a document would put the same thing in front of the model as its
+ * counterpart in a published snapshot. The editing metadata is not compared.
+ */
+function sameContent(document: PromptDocumentRow, published: PromptDocument | undefined): boolean {
+  if (!published) return false;
+  return (
+    document.title === published.title &&
+    document.body === published.body &&
+    document.kind === (published.kind ?? 'text') &&
+    JSON.stringify(document.table) === JSON.stringify(published.table ?? null) &&
+    document.isActive === (published.isActive ?? true) &&
+    document.position === published.position
+  );
+}
+
 interface Row {
   id: string;
   title: string;
   body: string;
+  kind: PromptDocumentKind;
+  table_content: PromptTable | null;
   position: number;
   is_active: boolean;
   updated_by: string | null;
@@ -399,6 +495,8 @@ function toDocument(row: Row): PromptDocumentRow {
     id: row.id,
     title: row.title,
     body: row.body,
+    kind: row.kind,
+    table: row.table_content,
     position: row.position,
     isActive: row.is_active,
     updatedBy: row.updated_by,

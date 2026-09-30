@@ -69,6 +69,13 @@ describe('the draft boundary', () => {
     expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
   });
 
+  it('refuses the bot the table cells too, which are drafts like the rest', async () => {
+    // Migration 0013 added the columns; a table reaches the bot only as text
+    // inside a published version.
+    const error = await errorFrom(() => bot.query('SELECT kind, table_content FROM public.prompt_documents'));
+    expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);
+  });
+
   it('refuses the bot the snapshot column it has no use for', async () => {
     const error = await errorFrom(() => bot.query('SELECT snapshot FROM public.prompt_versions'));
     expect(error.code).toBe(INSUFFICIENT_PRIVILEGE);

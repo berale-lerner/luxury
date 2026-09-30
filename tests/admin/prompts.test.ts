@@ -8,7 +8,8 @@
  */
 import { describe, expect, it, beforeAll, afterAll, beforeEach } from 'vitest';
 import pg from 'pg';
-import { assemblePrompt, PROMPT_SEPARATOR } from '@luxury/shared';
+import { assemblePrompt, PROMPT_SEPARATOR, renderTable } from '@luxury/shared';
+import { buildApp } from '../../apps/admin/server/src/app.js';
 import {
   createDocument,
   deleteDocument,
@@ -24,7 +25,7 @@ import {
 import { urlForRole } from '../helpers/config.js';
 
 const AGENT = 'prompt-test';
-const BY = 'owner@example.com';
+const BY = 'prompts-owner@example.com';
 
 let pool: pg.Pool;
 let owner: pg.Client;
@@ -49,6 +50,7 @@ beforeAll(async () => {
     [AGENT],
   );
   agentId = inserted.rows[0]!.id;
+  await owner.query("INSERT INTO public.admin_allowlist (email, role) VALUES ($1, 'owner')", [BY]);
 });
 
 beforeEach(async () => {
@@ -59,6 +61,7 @@ beforeEach(async () => {
 afterAll(async () => {
   // The agent cascades to both tables.
   await owner.query('DELETE FROM public.agents WHERE key = $1', [AGENT]);
+  await owner.query('DELETE FROM public.admin_allowlist WHERE email = $1', [BY]);
   await owner.end();
   await pool.end();
 });
@@ -221,5 +224,165 @@ describe('the assembly rule itself', () => {
         { title: 'b', body: '\nSecond.  ', position: 10 },
       ]),
     ).toBe(['Second.', 'First.'].join(PROMPT_SEPARATOR));
+  });
+});
+
+const HOURS = { columns: ['Season', 'Check-in'], rows: [['Summer', '15:00'], ['Winter', '14:00']] };
+
+describe('a table document', () => {
+  it('is served as a Markdown table under its title, identically in preview and publish', async () => {
+    await createDocument(pool, AGENT, { title: 'role', body: 'You are the assistant.', by: BY });
+    await createDocument(pool, AGENT, { title: 'Hours', kind: 'table', table: HOURS, by: BY });
+
+    const { preview } = await getPrompt(pool, AGENT);
+    await publish(pool, AGENT, BY);
+
+    expect((await getVersion(pool, AGENT, 1)).body).toBe(preview);
+    expect(preview).toBe(
+      [
+        'You are the assistant.',
+        '## Hours\n\n| Season | Check-in |\n| --- | --- |\n| Summer | 15:00 |\n| Winter | 14:00 |',
+      ].join(PROMPT_SEPARATOR),
+    );
+  });
+
+  it('starts with an empty table to type into, which serves nothing yet', async () => {
+    const table = await createDocument(pool, AGENT, { title: 'Empty', kind: 'table', by: BY });
+    expect(table.kind).toBe('table');
+    expect(table.table).toEqual({ columns: ['', ''], rows: [['', '']] });
+    expect((await getPrompt(pool, AGENT)).preview).toBe('');
+  });
+
+  it('keeps its kind: text cannot be written to a table, nor cells to text', async () => {
+    const table = await createDocument(pool, AGENT, { title: 'T', kind: 'table', table: HOURS, by: BY });
+    const text = await createDocument(pool, AGENT, { title: 'X', body: 'Words.', by: BY });
+
+    expect(await refusalFrom(() => updateDocument(pool, AGENT, { id: table.id, body: 'x', by: BY }))).toBe(
+      'wrong_kind',
+    );
+    expect(
+      await refusalFrom(() => updateDocument(pool, AGENT, { id: text.id, table: HOURS, by: BY })),
+    ).toBe('wrong_kind');
+    // Neither was changed by the refused write.
+    const { documents } = await getPrompt(pool, AGENT);
+    expect(documents.map((d) => [d.body, d.table])).toEqual([
+      ['', HOURS],
+      ['Words.', null],
+    ]);
+  });
+
+  it('is restored by a revert as cells, not as rendered text', async () => {
+    const table = await createDocument(pool, AGENT, { title: 'Hours', kind: 'table', table: HOURS, by: BY });
+    await publish(pool, AGENT, BY);
+    await updateDocument(pool, AGENT, { id: table.id, table: { columns: ['A'], rows: [['changed']] }, by: BY });
+
+    const [restored] = await revertTo(pool, AGENT, 1, BY);
+    expect([restored!.kind, restored!.table]).toEqual(['table', HOURS]);
+  });
+});
+
+describe('what changed since the published version', () => {
+  it('marks the documents an edit touched, and a new one', async () => {
+    const kept = await createDocument(pool, AGENT, { title: 'kept', body: 'Same.', by: BY });
+    const edited = await createDocument(pool, AGENT, { title: 'edited', body: 'Before.', by: BY });
+    await publish(pool, AGENT, BY);
+
+    await updateDocument(pool, AGENT, { id: edited.id, body: 'After.', by: BY });
+    const added = await createDocument(pool, AGENT, { title: 'added', body: 'New.', by: BY });
+
+    const { documents } = await getPrompt(pool, AGENT);
+    const changed = Object.fromEntries(documents.map((d) => [d.id, d.changed]));
+    expect(changed).toEqual({ [kept.id]: false, [edited.id]: true, [added.id]: true });
+  });
+
+  it('matches a version seeded from files, which has no ids, by position', async () => {
+    const seeded = await createDocument(pool, AGENT, { title: 'role', body: 'Seeded.', by: BY });
+    // What scripts/deploy.mjs stores: the documents as read from files.
+    await owner.query(
+      `INSERT INTO public.prompt_versions (agent_id, version_number, body, snapshot, published_by)
+       VALUES ($1, 1, 'Seeded.', $2::jsonb, 'deploy')`,
+      [agentId, JSON.stringify([{ title: 'role', body: 'Seeded.', position: seeded.position }])],
+    );
+    expect((await getPrompt(pool, AGENT)).documents.map((d) => d.changed)).toEqual([false]);
+  });
+
+  it('counts every document as changed before anything is published', async () => {
+    await createDocument(pool, AGENT, { title: 'a', body: 'A.', by: BY });
+    expect((await getPrompt(pool, AGENT)).documents.map((d) => d.changed)).toEqual([true]);
+  });
+});
+
+describe('rendering a table', () => {
+  it('keeps a pipe or a newline inside its cell', () => {
+    expect(renderTable('', { columns: ['a|b'], rows: [['one\ntwo | three']] })).toBe(
+      '| a\\|b |\n| --- |\n| one<br>two \\| three |',
+    );
+  });
+
+  it('drops empty rows, and renders nothing when none are left', () => {
+    expect(renderTable('T', { columns: ['a', 'b'], rows: [[' ', ''], ['x', '']] })).toBe(
+      '## T\n\n| a | b |\n| --- | --- |\n| x |  |',
+    );
+    expect(renderTable('T', { columns: ['a'], rows: [['  ']] })).toBe('');
+    expect(renderTable('T', { columns: [], rows: [] })).toBe('');
+  });
+
+  it('treats a snapshot from before tables existed as text', () => {
+    expect(assemblePrompt([{ title: 'old', body: 'Old text.', position: 10 }])).toBe('Old text.');
+  });
+});
+
+describe('the endpoint', () => {
+  async function send(method: 'POST' | 'PATCH', url: string, payload: unknown) {
+    const session = { async read() { return { email: BY, name: 'Test' }; } };
+    const messaging = {
+      async sendToConversation() {
+        return { channel: 'telegram' as const, providerMessageId: 'stub' };
+      },
+      async indicateTyping() {},
+    };
+    const app = buildApp({ pool, session, messaging, logLevel: 'silent' });
+    await app.ready();
+    try {
+      return await app.inject({ method, url, payload: payload as object });
+    } finally {
+      await app.close();
+    }
+  }
+
+  it('creates a table document', async () => {
+    const response = await send('POST', `/api/agents/${AGENT}/documents`, {
+      title: 'Hours',
+      kind: 'table',
+      table: HOURS,
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().document).toMatchObject({ kind: 'table', table: HOURS });
+  });
+
+  it('refuses a table whose rows do not match its columns', async () => {
+    const response = await send('POST', `/api/agents/${AGENT}/documents`, {
+      title: 'Broken',
+      kind: 'table',
+      table: { columns: ['a', 'b'], rows: [['only one']] },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('refuses a table with no columns, or an unknown kind', async () => {
+    const noColumns = await send('POST', `/api/agents/${AGENT}/documents`, {
+      title: 'x',
+      kind: 'table',
+      table: { columns: [], rows: [] },
+    });
+    const unknownKind = await send('POST', `/api/agents/${AGENT}/documents`, { title: 'x', kind: 'sheet' });
+    expect([noColumns.statusCode, unknownKind.statusCode]).toEqual([400, 400]);
+  });
+
+  it('answers a write of the wrong kind with its reason', async () => {
+    const text = await createDocument(pool, AGENT, { title: 'X', body: 'Words.', by: BY });
+    const response = await send('PATCH', `/api/agents/${AGENT}/documents/${text.id}`, { table: HOURS });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'wrong_kind' });
   });
 });

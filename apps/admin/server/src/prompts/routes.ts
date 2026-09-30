@@ -21,15 +21,32 @@ const keySchema = z.string().min(1).max(64);
 const idSchema = z.string().uuid();
 const versionSchema = z.coerce.number().int().positive();
 
+/**
+ * A table document's cells. The bounds are generous for a prompt and still
+ * stop a paste of a whole spreadsheet: every cell is sent to the model with
+ * every guest message.
+ */
+const tableSchema = z
+  .object({
+    columns: z.array(z.string().max(200)).min(1).max(30),
+    rows: z.array(z.array(z.string().max(2_000))).max(500),
+  })
+  .refine((table) => table.rows.every((row) => row.length === table.columns.length), {
+    message: 'every row needs one cell per column',
+  });
+
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
-  body: z.string().max(100_000).default(''),
+  kind: z.enum(['text', 'table']).default('text'),
+  body: z.string().max(100_000).optional(),
+  table: tableSchema.optional(),
 });
 
 const updateSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     body: z.string().max(100_000).optional(),
+    table: tableSchema.optional(),
     isActive: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'nothing to change' });
@@ -42,6 +59,7 @@ const STATUS: Record<PromptWriteError, number> = {
   empty: 409,
   unchanged: 409,
   bad_order: 400,
+  wrong_kind: 400,
 };
 
 function refuse(reply: FastifyReply, error: unknown): FastifyReply | never {

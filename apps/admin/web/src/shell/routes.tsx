@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { DashboardsPage } from '../pages/dashboards/DashboardsPage';
 import { ConversationsPage } from '../pages/conversations/ConversationsPage';
-import { PromptPage } from '../pages/prompt/PromptPage';
+import { AgentPage } from '../pages/agents/AgentPage';
+import { AgentsPage } from '../pages/agents/AgentsPage';
 import { UsersPage } from '../pages/users/UsersPage';
 import type { AdminRole, Me } from '../types';
+import { navigate } from './router';
 
 const RANK: Record<AdminRole, number> = { viewer: 0, manager: 1, owner: 2 };
 
@@ -41,6 +43,12 @@ export interface Route {
    */
   readonly minRole?: AdminRole;
   render(params: Readonly<Record<string, string>>, me: Me): ReactNode;
+}
+
+/** A route kept only so an old link lands somewhere. replace, so back skips it. */
+function Redirect({ to }: { to: string }) {
+  useEffect(() => navigate(to, { replace: true }), [to]);
+  return null;
 }
 
 const PromptIcon = (
@@ -123,15 +131,42 @@ export const routes: readonly Route[] = [
     render: (params) => <DashboardsPage board={params.board ?? null} />,
   },
   {
-    path: '/prompt',
-    section: 'prompt',
-    title: 'פרומפט',
-    label: 'פרומפט',
+    path: '/agents',
+    section: 'agents',
+    title: 'סוכנים',
+    label: 'סוכנים',
     icon: PromptIcon,
-    // Reading is a manager's; every change behind this page is an owner's,
+    // Reading is a manager's; every change behind these pages is an owner's,
     // enforced on the endpoints rather than by which link is drawn.
     minRole: 'manager',
-    render: () => <PromptPage />,
+    render: () => <AgentsPage />,
+  },
+  {
+    path: '/agents/:key',
+    section: 'agents',
+    title: 'סוכנים',
+    minRole: 'manager',
+    render: (params) => <AgentPage key={params.key} agentKey={params.key ?? ''} item={null} />,
+  },
+  {
+    path: '/agents/:key/:item',
+    section: 'agents',
+    title: 'סוכנים',
+    minRole: 'manager',
+    // A document fills a phone screen and carries its own back button.
+    navOnNarrow: false,
+    render: (params) => (
+      <AgentPage key={params.key} agentKey={params.key ?? ''} item={params.item ?? null} />
+    ),
+  },
+  {
+    // Where the prompt page used to be, before there was more than one agent
+    // to choose from.
+    path: '/prompt',
+    section: 'agents',
+    title: 'סוכנים',
+    minRole: 'manager',
+    render: () => <Redirect to="/agents/guest" />,
   },
   {
     path: '/users',

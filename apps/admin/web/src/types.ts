@@ -66,15 +66,27 @@ export interface Agent {
   name: string;
 }
 
+/** A table document's cells: one cell per column in every row. */
+export interface PromptTable {
+  columns: string[];
+  rows: string[][];
+}
+
 /** One document in the draft the manager edits. */
 export interface PromptDocument {
   id: string;
   title: string;
+  kind: 'text' | 'table';
+  /** A text document's content; empty for a table. */
   body: string;
+  /** A table document's content; null for text. */
+  table: PromptTable | null;
   position: number;
   isActive: boolean;
   updatedBy: string | null;
   updatedAt: string;
+  /** Differs from the version that is serving. Decided by the server. */
+  changed: boolean;
 }
 
 /** A frozen version — what the bot is actually serving. */
