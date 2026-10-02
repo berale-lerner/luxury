@@ -60,9 +60,21 @@ exists only in the console is one you look up again every time.
 |---|---|
 | `admin` | https://admin-staging-9fe9.up.railway.app |
 | `bot` | https://bot-staging-2a5a.up.railway.app |
+| `site` | https://site-staging-07d9.up.railway.app |
 
 Staging's services track the **`staging`** branch, not `main`. A push to `main`
 does not reach staging; test there by pushing to `staging`.
+
+### `site` exists only in staging (2026-10-02)
+
+It was created in staging alone; production has no `site` instance yet. A
+service created with `railway add` lands in the **linked** environment
+(production, for everyone so far), and the CLI takes no `--environment` for
+it. So it was created through the API with staging's `environmentId`, which
+for a forked environment creates the service there only, then given its
+source, build settings and a deploy trigger on the `staging` branch.
+Adding it to production is a separate, deliberate step with the owner's
+go-ahead.
 
 ### ⚠️ Never duplicate production as it is
 
