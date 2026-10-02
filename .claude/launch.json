@@ -10,6 +10,12 @@
       ],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["apps/site/server.mjs"],
+      "port": 3100
     }
   ]
 }

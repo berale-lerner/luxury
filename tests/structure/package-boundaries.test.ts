@@ -90,3 +90,39 @@ describe('the two services', () => {
     }
   });
 });
+
+describe('apps/site', () => {
+  // Public, with no sign-in in front of it (DESIGN.md). It stays a set of
+  // files: the moment it needs data or a secret, it needs its own DB role and
+  // a recorded decision first (CLAUDE.md, "Adding a new app").
+  it('has no database driver and no workspace package that carries one', async () => {
+    const pkg = await packageJson('apps/site');
+    const dependencies = Object.keys({
+      ...(pkg['dependencies'] as object | undefined),
+      ...(pkg['devDependencies'] as object | undefined),
+    });
+    expect(dependencies).not.toContain('pg');
+    expect(dependencies.filter((name) => name.startsWith('@luxury/'))).toEqual([]);
+  });
+
+  it('reads no environment variable except PORT', async () => {
+    const entries = await readdir(join(ROOT, 'apps/site/src'), { recursive: true, withFileTypes: true });
+    const files = entries
+      .filter((entry) => entry.isFile() && /\.(ts|tsx|mjs|js)$/.test(entry.name))
+      .map((entry) => join(entry.parentPath, entry.name));
+    files.push(join(ROOT, 'apps/site/server.mjs'), join(ROOT, 'apps/site/next.config.mjs'));
+
+    for (const file of files) {
+      const source = await readFile(file, 'utf8');
+      const reads = source.match(/process\.env\.[A-Z_]+/g) ?? [];
+      expect(reads.filter((read) => read !== 'process.env.PORT'), file).toEqual([]);
+    }
+  });
+
+  it('loads no script from another origin', async () => {
+    // The design tool's export injected its own runtime from unpkg into every
+    // page. A third-party script on the public site runs with the site's origin.
+    const layout = await readFile(join(ROOT, 'apps/site/src/app/layout.tsx'), 'utf8');
+    expect(layout).not.toMatch(/<Script|<script/);
+  });
+});

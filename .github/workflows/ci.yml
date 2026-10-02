@@ -36,6 +36,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # The public site is outside tsc -b; its build is its typecheck.
+      - run: pnpm --filter @luxury/site build
       # Builds the database from the migration files and runs the permission
       # suite against it.
       - run: pnpm test

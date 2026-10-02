@@ -1,0 +1,3 @@
+# The static build, produced by `next build` and served by server.mjs.
+/out/
+next-env.d.ts

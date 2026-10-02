@@ -14,8 +14,10 @@ Monorepo, two **completely separate** services (separate processes, separate dep
 ```
 apps/
 ├── bot/     Exposed to the internet. Talks to guests. bot_user only.
-└── admin/   Behind auth. Dashboards, management, business data. admin_user only.
-             server/ (Fastify) + web/ (React SPA, no data access), one deployment.
+├── admin/   Behind auth. Dashboards, management, business data. admin_user only.
+│            server/ (Fastify) + web/ (React SPA, no data access), one deployment.
+└── site/    Public marketing site for the Chabad house. Static files only:
+             no DB role, no credentials, no env beyond PORT (DESIGN.md).
 packages/
 ├── shared/     Types, validation schemas, pure utils. No external dependencies,
 │               no credentials, no network, no data access.

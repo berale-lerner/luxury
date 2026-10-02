@@ -122,8 +122,27 @@ export default defineRailway(() => {
     },
   });
 
+  // Public, and nothing behind it: static files with no DB role and no
+  // credentials (DESIGN.md, app 4). Built on its own — the Next build is
+  // slow, and neither bot nor admin needs it.
+  const site = service('site', {
+    source: github(REPO, { branch: BRANCH }),
+    build: {
+      builder: 'NIXPACKS',
+      buildCommand: 'pnpm install --frozen-lockfile && pnpm --filter @luxury/site build',
+      watchPatterns: ['apps/site/**', 'pnpm-lock.yaml'],
+    },
+    deploy: {
+      startCommand: 'pnpm --filter @luxury/site start',
+      healthcheckPath: '/health',
+      restartPolicyType: 'ON_FAILURE',
+      restartPolicyMaxRetries: 3,
+    },
+    env: {},
+  });
+
   return project('luxury', {
     environments: ['production', 'staging'],
-    resources: [db, migrator, bot, admin],
+    resources: [db, migrator, bot, admin, site],
   });
 });

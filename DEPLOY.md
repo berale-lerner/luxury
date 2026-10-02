@@ -29,7 +29,7 @@ defined on the service that consumes them.
 
 ---
 
-## Structure: four services in each environment
+## Structure: five services in each environment
 
 | Service | DB role | Exposed to the internet |
 |---|---|---|
@@ -37,6 +37,7 @@ defined on the service that consumes them.
 | `migrator` | Owner | No |
 | `bot` | `bot_user` | **Yes** — Telegram's webhook |
 | `admin` | `admin_user` | Yes, behind auth and the allowlist |
+| `site` | — | **Yes** — the public Chabad house site; static files, no DB, no variables |
 
 ### Production URLs
 
@@ -207,6 +208,7 @@ Build and start settings — what production actually runs:
 | `migrator` | `pnpm install --frozen-lockfile` | `node scripts/deploy.mjs` | Restart policy `NEVER` |
 | `bot` | `pnpm install --frozen-lockfile && pnpm build` | `pnpm --filter @luxury/bot start` | Healthcheck `/health` |
 | `admin` | `pnpm install --frozen-lockfile && pnpm build` | `pnpm --filter @luxury/admin start` | Healthcheck `/health` |
+| `site` | `pnpm install --frozen-lockfile && pnpm --filter @luxury/site build` | `pnpm --filter @luxury/site start` | Healthcheck `/health`. Watch paths `apps/site/**`, `pnpm-lock.yaml` |
 
 Production's `admin` currently gets these commands from `RAILPACK_*` and
 `NIXPACKS_*` variables rather than from service settings; either works.
@@ -223,6 +225,10 @@ Production's `admin` currently gets these commands from `RAILPACK_*` and
 | `admin` | `DATABASE_URL` | `postgres://admin_user:${{ADMIN_DB_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:5432/${{Postgres.PGDATABASE}}` |
 | `admin` | `PUBLIC_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
 | `admin` | `PORT`, `LOG_LEVEL` | `3000`, `info` |
+
+`site` takes **no variables at all** — Railway sets `PORT` itself. If someone
+proposes adding one, that is the moment the site stops being static files
+(DESIGN.md, app 4).
 
 The role name in `DATABASE_URL` (`bot_user` / `admin_user`) is the
 security-relevant half of the string — it decides what the service may see —
